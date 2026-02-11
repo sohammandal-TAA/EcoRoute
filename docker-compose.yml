@@ -1,29 +1,40 @@
 version: '3.8'
 
 services:
-  # --- Existing PostGIS Database ---
   db:
-    image: kartoza/postgis:15
-    container_name: stealth-db
+    image: postgis/postgis:16-3.4
+    container_name: stealth-postgis
     environment:
-      - POSTGRES_USER=postgres
-      - POSTGRES_PASS=postgres
-      - ALLOW_IP_RANGE=0.0.0.0/0
+      POSTGRES_DB: stealth_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
     ports:
       - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - stealth-network
 
-  # --- New Local OpenRouteService ---
-  ors-app:
-    container_name: stealth-ors
-    image: openrouteservice/openrouteservice:latest
+  app:
+    build: .
+    container_name: stealth-app
     ports:
-      - "8082:8082"
+      - "8080:8080"
+    depends_on:
+      db:
+        condition: service_healthy
     environment:
-      - REBUILD_GRAPHS=True # Build the map on first start
-      - CONTAINER_LOG_LEVEL=INFO
-      - XMS=1g
-      - XMX=4g # Increase if Berlin map fails to load
-      # Point to your Berlin file inside the container
-      - ors.engine.profile_default.build.source_file=/home/ors/files/berlin.osm.pbf
-    volumes:
-      - ./ors-docker:/home/ors
+      # These override your application.properties for Docker internal networking
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/stealth_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: postgres
+      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY} # Load from your local .env file
+    networks:
+      - stealth-network
+
+networks:
+  stealth-network:
+    driver: bridge

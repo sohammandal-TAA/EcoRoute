@@ -34,8 +34,10 @@ build/
 
 ## env
 src/main/resources/application.properties
+.env
 
 ## mvn w
 .mvn/wrapper
 
 ors-docker/**
+

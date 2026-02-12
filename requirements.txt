@@ -1,0 +1,13 @@
+requests
+pykrige
+numpy
+pandas
+polyline
+openmeteo-requests
+dotenv  
+fastapi
+uvicorn
+requests-cache
+retry_requests
+tensorflow-macos
+tensorflow-metal

@@ -1,11 +1,18 @@
-# Build stage
-FROM maven:3.9.12-eclipse-temurin-21 AS build
-COPY src /home/app/src
-COPY pom.xml /home/app
-RUN mvn -f /home/app/pom.xml clean package -DskipTests
+# Stage 1: Build
+FROM maven:3.9.6-eclipse-temurin-21 AS build
+WORKDIR /build
+# Copy pom.xml and source code
+COPY pom.xml .
+COPY src ./src
+# Build the application
+RUN mvn clean package -DskipTests
 
-# Run stage
-FROM eclipse-temurin:21-jre
-COPY --from=build /home/app/target/stealth-0.0.1-SNAPSHOT.jar /usr/local/lib/stealth.jar
+# Stage 2: Run
+FROM eclipse-temurin:21-jre-jammy
+WORKDIR /app
+# Copy the built jar from the build stage
+COPY --from=build /build/target/*.jar app.jar
+
 EXPOSE 8080
-ENTRYPOINT ["java","-jar","/usr/local/lib/stealth.jar"]
+# Run the application
+ENTRYPOINT ["java", "-jar", "app.jar"]

@@ -138,8 +138,9 @@ x = layers.LSTM(
 x = layers.LSTM(
     128,
     dropout=0.2,
-    return_sequences=False
+    return_sequences=True
 )(x)
+x = layers.LSTM(64, return_sequences=False)(x)
 
 # ---- Bottleneck ----
 # bottleneck = layers.Dense(64, activation="relu")(encoder)
@@ -170,7 +171,7 @@ model = keras.Model(
 
 model.compile(
     optimizer=keras.optimizers.Adam(learning_rate=0.001),
-    loss="mse",
+    loss=keras.losses.Huber(delta=20),
     metrics=[keras.metrics.RootMeanSquaredError()]
 )
 

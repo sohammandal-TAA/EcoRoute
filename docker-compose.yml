@@ -29,10 +29,10 @@ services:
         RUN apt-get update && apt-get install -y build-essential --no-install-recommends && rm -rf /var/lib/apt/lists/*
         COPY requirements.txt .
         RUN pip install --no-cache-dir -r requirements.txt
-        COPY python_research/models/aqi_calculate.py .
-        # Do not copy .env inside the image; use the environment block below
+        COPY python_research/ ./python_research/
+        COPY main.py .
         EXPOSE 8000
-        CMD ["uvicorn", "aqi_calculate:app", "--host", "0.0.0.0", "--port", "8000"]
+        CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
     container_name: ai-service
     environment:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}

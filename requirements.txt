@@ -10,3 +10,4 @@ uvicorn
 requests-cache
 retry_requests
 tensorflow
+joblib

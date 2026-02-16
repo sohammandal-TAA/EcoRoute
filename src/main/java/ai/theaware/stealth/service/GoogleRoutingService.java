@@ -5,7 +5,6 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -68,26 +67,30 @@ public class GoogleRoutingService {
                     .alternatives(true)
                     .await();
 
-            Map<String, List<List<Double>>> routesMap = new HashMap<>();
-            for (int i = 0; i < result.routes.length; i++) {
-                DirectionsRoute route = result.routes[i];
+            List<RouteResponseDTO.RouteDetail> routesList = new ArrayList<>();
+
+            for (DirectionsRoute route : result.routes) {
                 List<RouteResponseDTO.Coordinate> rawCoords = route.overviewPolyline.decodePath()
                         .stream()
                         .map(p -> new RouteResponseDTO.Coordinate(p.lat, p.lng))
                         .collect(Collectors.toList());
 
                 List<RouteResponseDTO.Coordinate> cleaned = resamplePath(rawCoords, INTERVAL_METERS);
-                List<List<Double>> pythonFormatCoords = cleaned.stream()
-                        .map(c -> List.of(c.getLat(), c.getLng()))
-                        .collect(Collectors.toList());
                 
-                routesMap.put("route_" + i, pythonFormatCoords);
+                RouteResponseDTO.RouteDetail detail = new RouteResponseDTO.RouteDetail(
+                        route.legs[0].distance.humanReadable,
+                        route.legs[0].distance.inMeters,
+                        route.legs[0].duration.humanReadable,
+                        cleaned  
+                );
+                routesList.add(detail);
             }
 
             Map<String, Object> aiRequest = Map.of(
                 "start_loc", List.of(sLat, sLon),
                 "end_loc", List.of(dLat, dLon),
-                "routes", routesMap
+                "routeCount", routesList.size(),
+                "routes", routesList  
             );
 
             Object aiResponse;

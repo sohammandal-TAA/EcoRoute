@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-page-bg text-white antialiased;
+}
+
+.page-shell {
+  background-color: #020617;
+  background-image:
+    radial-gradient(circle at top left, rgba(124, 252, 191, 0.12), transparent 60%),
+    radial-gradient(circle at top right, rgba(55, 126, 255, 0.18), transparent 55%),
+    radial-gradient(circle at bottom left, rgba(42, 255, 171, 0.1), transparent 60%);
+}
+
+.grid-overlay {
+  background-image:
+    linear-gradient(rgba(65, 86, 151, 0.22) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(65, 86, 151, 0.22) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+}
+
+.hero-gradient {
+  background: radial-gradient(circle at top, rgba(125, 254, 154, 0.16), transparent 60%);
+}
+
+.pill-tag {
+  @apply inline-flex items-center gap-2 rounded-pill border border-soft bg-card-bg/60 px-3 py-1 text-xs font-medium text-muted-text shadow-pill backdrop-blur;
+}
+
+.primary-cta {
+  @apply inline-flex items-center justify-center rounded-pill bg-accent-green px-5 py-2.5 text-sm font-semibold text-black shadow-pill transition hover:bg-accent-green-soft;
+}
+
+.secondary-cta {
+  @apply inline-flex items-center justify-center rounded-pill border border-soft bg-transparent px-5 py-2.5 text-sm font-semibold text-white/90 transition hover:bg-white/5;
+}
+

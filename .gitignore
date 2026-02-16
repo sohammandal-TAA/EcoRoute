@@ -50,3 +50,6 @@ pycache/
 __pycache__/
 python_research/models/data_aqi_final.py
 python_research/models/durgapur_30day_aqi.csv
+
+#frontend
+frontend/node_modules

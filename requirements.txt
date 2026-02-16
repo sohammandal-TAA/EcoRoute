@@ -9,3 +9,4 @@ fastapi
 uvicorn
 requests-cache
 retry_requests
+tensorflow

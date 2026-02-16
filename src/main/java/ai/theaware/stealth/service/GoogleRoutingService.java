@@ -1,9 +1,13 @@
 package ai.theaware.stealth.service;
 
+import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -11,12 +15,14 @@ import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.PrecisionModel;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import com.google.maps.DirectionsApi;
 import com.google.maps.GeoApiContext;
+import com.google.maps.errors.ApiException;
 import com.google.maps.model.DirectionsResult;
 import com.google.maps.model.DirectionsRoute;
 import com.google.maps.model.LatLng;
@@ -25,41 +31,36 @@ import ai.theaware.stealth.dto.RouteResponseDTO;
 import ai.theaware.stealth.entity.Route;
 import ai.theaware.stealth.entity.Users;
 import ai.theaware.stealth.repository.RouteRepository;
-import ai.theaware.stealth.repository.UserRepository;
-import tools.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
+@Slf4j
 public class GoogleRoutingService {
 
     @Value("${google.maps.api.key}")
     private String apiKey;
 
+    @Value("${app.ai.service.url}")
+    private String aiServiceUrl;
+
     private final RouteRepository routeRepository;
-    private final UserRepository userRepository;
-    private final RestTemplate restTemplate;
-    private final ObjectMapper objectMapper;
     private final GeometryFactory geometryFactory;
+    private final RestTemplate restTemplate;
 
     private static final double INTERVAL_METERS = 1000.0;
-    private static final String AI_SERVICE_URL = "http://ai-service:8000/predict/aqi";
 
-    public GoogleRoutingService(RouteRepository routeRepository, UserRepository userRepository) {
+    public GoogleRoutingService(RouteRepository routeRepository, 
+                                RestTemplate restTemplate) {
         this.routeRepository = routeRepository;
-        this.userRepository = userRepository;
-        this.restTemplate = new RestTemplate();
-        this.objectMapper = new ObjectMapper();
+        this.restTemplate = restTemplate;
         this.geometryFactory = new GeometryFactory(new PrecisionModel(), 4326);
     }
 
-    public RouteResponseDTO getSmartRoute(Double sLat, Double sLon, Double dLat, Double dLon) {
+    @Cacheable(value = "aqi_routes", key = "{#sLat, #sLon, #dLat, #dLon, #user.username}")
+    public Object processRoute(Double sLat, Double sLon, Double dLat, Double dLon, Users user) {
+        System.out.println("⏳ [CACHE MISS] Processing fresh request for user: " + user.getUsername());
+        
         try {
-            Optional<Route> cachedRoute = routeRepository.findCachedRoute(sLat, sLon, dLat, dLon);
-            if (cachedRoute.isPresent()) {
-                System.out.println("LOG: Global Cache Hit. Avoiding Google API call.");
-                return objectMapper.readValue(cachedRoute.get().getCachedResponseJson(), RouteResponseDTO.class);
-            }
-
-            System.out.println("LOG: Cache Miss. Initiating Google Maps API & AI Handoff...");
             GeoApiContext context = new GeoApiContext.Builder().apiKey(apiKey).build();
             DirectionsResult result = DirectionsApi.newRequest(context)
                     .origin(new LatLng(sLat, sLon))
@@ -67,77 +68,98 @@ public class GoogleRoutingService {
                     .alternatives(true)
                     .await();
 
-            List<RouteResponseDTO.RouteDetail> routeDetails = new ArrayList<>();
-
-            for (DirectionsRoute route : result.routes) {
+            Map<String, List<List<Double>>> routesMap = new HashMap<>();
+            for (int i = 0; i < result.routes.length; i++) {
+                DirectionsRoute route = result.routes[i];
                 List<RouteResponseDTO.Coordinate> rawCoords = route.overviewPolyline.decodePath()
                         .stream()
                         .map(p -> new RouteResponseDTO.Coordinate(p.lat, p.lng))
                         .collect(Collectors.toList());
 
-        
-                List<RouteResponseDTO.Coordinate> cleanedCoords = resamplePath(rawCoords, INTERVAL_METERS);
-
-                routeDetails.add(new RouteResponseDTO.RouteDetail(
-                        route.legs[0].distance.humanReadable,
-                        route.legs[0].distance.inMeters,
-                        route.legs[0].duration.humanReadable,
-                        cleanedCoords
-                ));
+                List<RouteResponseDTO.Coordinate> cleaned = resamplePath(rawCoords, INTERVAL_METERS);
+                List<List<Double>> pythonFormatCoords = cleaned.stream()
+                        .map(c -> List.of(c.getLat(), c.getLng()))
+                        .collect(Collectors.toList());
+                
+                routesMap.put("route_" + i, pythonFormatCoords);
             }
 
-            RouteResponseDTO intermediateResponse = new RouteResponseDTO(routeDetails.size(), routeDetails);
+            Map<String, Object> aiRequest = Map.of(
+                "start_loc", List.of(sLat, sLon),
+                "end_loc", List.of(dLat, dLon),
+                "routes", routesMap
+            );
 
-            RouteResponseDTO aqiEnhancedResponse = restTemplate.postForObject(AI_SERVICE_URL, intermediateResponse, RouteResponseDTO.class);
+            Object aiResponse;
+            try {
+                aiResponse = restTemplate.postForObject(aiServiceUrl, aiRequest, Object.class);
+            } catch (RestClientException e) {
+                log.error("AI Service Error: {}", e.getMessage());
+                return Map.of("error", "AI Service Unreachable");
+            }
 
-            Users currentUser = getAuthenticatedUser();
-            saveToDatabase(sLat, sLon, dLat, dLon, aqiEnhancedResponse, currentUser);
+            checkAndSaveHistory(sLat, sLon, dLat, dLon, user, result.routes[0]);
 
-            return aqiEnhancedResponse;
+            return aiResponse;
 
-        } catch (Exception e) {
-            throw new RuntimeException("Routing Error: " + e.getMessage());
+        } catch (ApiException | IOException | InterruptedException e) {
+            log.error("Fatal routing error", e);
+            return Map.of("error", "Processing Error", "message", e.getMessage());
         }
     }
 
-    private Users getAuthenticatedUser() {
-        String username = (String) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-        return userRepository.findByUsername(username)
-                .orElseThrow(() -> new RuntimeException("User session not found in database"));
-    }
-
-    private void saveToDatabase(Double sLat, Double sLon, Double dLat, Double dLon, RouteResponseDTO data, Users user) throws Exception {
-        Route newRoute = new Route();
-        newRoute.setUser(user);
-        newRoute.setStartLat(sLat);
-        newRoute.setStartLon(sLon);
-        newRoute.setEndLat(dLat);
-        newRoute.setEndLon(dLon);
-        newRoute.setCachedResponseJson(objectMapper.writeValueAsString(data));
-
+    private void checkAndSaveHistory(Double sLat, Double sLon, Double dLat, Double dLon, 
+                                     Users user, DirectionsRoute primaryRoute) {
         
-        if (!data.getRoutes().isEmpty()) {
-            Coordinate[] jtsCoords = data.getRoutes().get(0).getCoordinates().stream()
-                    .map(c -> new Coordinate(c.getLng(), c.getLat()))
-                    .toArray(Coordinate[]::new);
-            newRoute.setGeom(geometryFactory.createLineString(jtsCoords));
-        }
+        // Find the absolute last route this specific user requested
+        Optional<Route> lastEntry = routeRepository.findFirstByUserOrderByCreatedAtDesc(user);
 
-        routeRepository.save(newRoute);
+        boolean isDuplicate = lastEntry.isPresent() &&
+                lastEntry.get().getStartLat().equals(sLat) &&
+                lastEntry.get().getStartLon().equals(sLon) &&
+                lastEntry.get().getEndLat().equals(dLat) &&
+                lastEntry.get().getEndLon().equals(dLon);
+
+        if (isDuplicate) {
+            System.out.println("Route already exists in history for " + user.getUsername() + ". Skipping DB save.");
+        } else {
+            try {
+                saveToDatabase(sLat, sLon, dLat, dLon, user, primaryRoute);
+                System.out.println("Successfully logged history for " + user.getUsername());
+            } catch (Exception e) {
+                System.err.println("History save failed: " + e.getMessage());
+            }
+        }
+    }
+
+    private void saveToDatabase(Double sLat, Double sLon, Double dLat, Double dLon, 
+                                Users user, DirectionsRoute primaryRoute) throws Exception {
+        Route routeEntity = new Route();
+        routeEntity.setUser(user);
+        routeEntity.setStartLat(sLat);
+        routeEntity.setStartLon(sLon);
+        routeEntity.setEndLat(dLat);
+        routeEntity.setEndLon(dLon);
+        routeEntity.setCreatedAt(LocalDateTime.now());
+
+        List<LatLng> path = primaryRoute.overviewPolyline.decodePath();
+        Coordinate[] jtsCoords = path.stream()
+                .map(p -> new Coordinate(p.lng, p.lat))
+                .toArray(Coordinate[]::new);
+        
+        routeEntity.setGeom(geometryFactory.createLineString(jtsCoords));
+        routeRepository.save(routeEntity);
     }
 
     private List<RouteResponseDTO.Coordinate> resamplePath(List<RouteResponseDTO.Coordinate> path, double interval) {
         List<RouteResponseDTO.Coordinate> resampled = new ArrayList<>();
         if (path.isEmpty()) return resampled;
-
         resampled.add(round(path.get(0)));
         double accumulatedDist = 0.0;
-
         for (int i = 0; i < path.size() - 1; i++) {
             RouteResponseDTO.Coordinate start = path.get(i);
             RouteResponseDTO.Coordinate end = path.get(i + 1);
             double segmentDist = haversine(start.getLat(), start.getLng(), end.getLat(), end.getLng());
-
             while (accumulatedDist + segmentDist >= interval) {
                 double remainingNeeded = interval - accumulatedDist;
                 double ratio = remainingNeeded / segmentDist;

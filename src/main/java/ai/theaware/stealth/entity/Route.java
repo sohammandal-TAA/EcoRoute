@@ -2,31 +2,26 @@ package ai.theaware.stealth.entity;
 
 import java.time.LocalDateTime;
 
-import org.locationtech.jts.geom.LineString;
-
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
-import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import lombok.Data;
 
-
 @Entity
+@Data
 @Table(name = "routes")
-@Data   
 public class Route {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id")
+    @ManyToOne
+    @JoinColumn(name = "username", nullable = false) 
     private Users user;
 
     private Double startLat;
@@ -34,16 +29,8 @@ public class Route {
     private Double endLat;
     private Double endLon;
 
-    @Column(columnDefinition = "geometry(LineString, 4326)")
-    private LineString geom;
-
-    @Column(columnDefinition = "TEXT")
-    private String cachedResponseJson;
+    @Column(name = "geom", columnDefinition = "geometry(LineString, 4326)")
+    private org.locationtech.jts.geom.LineString geom;
 
     private LocalDateTime createdAt;
-
-    @PrePersist
-    protected void onCreate() {
-        createdAt = LocalDateTime.now();
-    }
 }

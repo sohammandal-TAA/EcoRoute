@@ -1,41 +1,62 @@
 version: '3.8'
 
 services:
-  db:
-    image: postgis/postgis:16-3.4
-    container_name: stealth-postgis
+  postgres:
+    image: postgis/postgis:15-3.3-alpine
+    container_name: stealth-db
     environment:
       POSTGRES_DB: stealth_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     ports:
-      - "5433:5432"
+      - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d stealth_db"]
+      interval: 5s
       timeout: 5s
       retries: 5
     networks:
-      - stealth-network
+      - stealth-net
 
-  app:
+  ai-service:
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM python:3.12-slim
+        WORKDIR /app
+        RUN apt-get update && apt-get install -y build-essential --no-install-recommends && rm -rf /var/lib/apt/lists/*
+        COPY requirements.txt .
+        RUN pip install --no-cache-dir -r requirements.txt
+        COPY python_research/models/aqi_calculate.py .
+        COPY .env . 
+        EXPOSE 8000
+        CMD ["uvicorn", "aqi_calculate:app", "--host", "0.0.0.0", "--port", "8000"]
+    container_name: ai-service
+    environment:
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+    networks:
+      - stealth-net
+
+  stealth-app:
     build: .
     container_name: stealth-app
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ai-service:
+        condition: service_started
     ports:
       - "8080:8080"
-    depends_on:
-      db:
-        condition: service_healthy
     environment:
-      # These override your application.properties for Docker internal networking
-      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/stealth_db
-      SPRING_DATASOURCE_USERNAME: postgres
-      SPRING_DATASOURCE_PASSWORD: postgres
-      GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY} # Load from your local .env file
-      JWT_SECRET: ${JWT_SECRET} # Load from your local .env file
+      - SPRING_DATASOURCE_URL=${DB_URL}
+      - SPRING_DATASOURCE_USERNAME=${DB_USERNAME}
+      - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
+      - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
+      - JWT_SECRET=${JWT_SECRET}
+      - APP_AI_SERVICE_URL=${AI_SERVICE_URL}
     networks:
-      - stealth-network
+      - stealth-net
 
 networks:
-  stealth-network:
+  stealth-net:
     driver: bridge

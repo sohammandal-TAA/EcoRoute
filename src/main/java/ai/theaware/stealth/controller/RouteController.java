@@ -1,7 +1,5 @@
 package ai.theaware.stealth.controller;
 
-import java.util.Map;
-
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -10,6 +8,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import ai.theaware.stealth.entity.Users;
+import ai.theaware.stealth.repository.UserRepository;
 import ai.theaware.stealth.service.GoogleRoutingService;
 
 @RestController
@@ -17,25 +16,25 @@ import ai.theaware.stealth.service.GoogleRoutingService;
 public class RouteController {
 
     private final GoogleRoutingService googleRoutingService;
+    private final UserRepository userRepository;  
 
-    // Inject only the Service
-    public RouteController(GoogleRoutingService googleRoutingService) {
+    public RouteController(GoogleRoutingService googleRoutingService, 
+                          UserRepository userRepository) { 
         this.googleRoutingService = googleRoutingService;
+        this.userRepository = userRepository;
     }
 
     @GetMapping
     public ResponseEntity<?> getRoute(
             @RequestParam Double sLat, @RequestParam Double sLon,
             @RequestParam Double dLat, @RequestParam Double dLon,
-            @AuthenticationPrincipal Users user) { // Dynamically injected from JWT Filter
-
-        // Trigger the background task
-        googleRoutingService.getSmartRoute(sLat, sLon, dLat, dLon);
-
-        // Return 202 Accepted (Standard for Async tasks)
-        return ResponseEntity.accepted().body(Map.of(
-            "message", "Route processing initiated asynchronously.",
-            "status", "processing"
-        ));
+            @AuthenticationPrincipal org.springframework.security.core.userdetails.User userDetails) { 
+        
+        Users user = userRepository.findByUsername(userDetails.getUsername())
+                .orElseThrow(() -> new RuntimeException("User not found"));
+        
+        Object response = googleRoutingService.processRoute(sLat, sLon, dLat, dLon, user);
+        
+        return ResponseEntity.ok(response);
     }
 }

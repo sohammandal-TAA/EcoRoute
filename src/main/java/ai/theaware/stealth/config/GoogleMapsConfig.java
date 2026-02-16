@@ -12,7 +12,7 @@ public class GoogleMapsConfig {
     @Value("${google.maps.api.key}")
     private String apiKey;
 
-    @Bean
+    @Bean(destroyMethod = "shutdown")
     public GeoApiContext geoApiContext() {
         return new GeoApiContext.Builder()
                 .apiKey(apiKey)

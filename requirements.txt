@@ -10,4 +10,8 @@ uvicorn
 requests-cache
 retry_requests
 tensorflow
-joblib
+torch
+transformers
+scikit-learn
+matplotlib
+seaborn

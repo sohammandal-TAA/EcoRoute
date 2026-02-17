@@ -12,7 +12,7 @@ retry_requests
 tensorflow
 joblib
 torch
-transformers
-scikit-learn
-matplotlib
-seaborn
+# transformers
+# scikit-learn
+# matplotlib
+# seaborn

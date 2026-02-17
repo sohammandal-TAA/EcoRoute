@@ -58,9 +58,10 @@ public class GoogleRoutingService {
     @Cacheable(value = "aqi_routes", key = "{#sLat, #sLon, #dLat, #dLon, #user.email}")
     public Object processRoute(Double sLat, Double sLon, Double dLat, Double dLon, Users user) {
         System.out.println("[CACHE MISS] Processing fresh request for user: " + user.getEmail());
-        
+
+        GeoApiContext context = new GeoApiContext.Builder().apiKey(apiKey).build();
+
         try {
-            GeoApiContext context = new GeoApiContext.Builder().apiKey(apiKey).build();
             DirectionsResult result = DirectionsApi.newRequest(context)
                     .origin(new LatLng(sLat, sLon))
                     .destination(new LatLng(dLat, dLon))
@@ -76,26 +77,30 @@ public class GoogleRoutingService {
                         .collect(Collectors.toList());
 
                 List<RouteResponseDTO.Coordinate> cleaned = resamplePath(rawCoords, INTERVAL_METERS);
-                
+
                 RouteResponseDTO.RouteDetail detail = new RouteResponseDTO.RouteDetail(
                         route.legs[0].distance.humanReadable,
                         route.legs[0].distance.inMeters,
                         route.legs[0].duration.humanReadable,
-                        cleaned  
+                        cleaned
                 );
                 routesList.add(detail);
             }
 
             Map<String, Object> aiRequest = Map.of(
                 "start_loc", List.of(sLat, sLon),
-                "end_loc", List.of(dLat, dLon),
+                "end_loc",   List.of(dLat, dLon),
                 "routeCount", routesList.size(),
-                "routes", routesList  
+                "routes",    routesList
             );
 
             Object aiResponse;
             try {
-                aiResponse = restTemplate.postForObject(aiServiceUrl, aiRequest, Object.class);
+                aiResponse = restTemplate.postForObject(
+                    aiServiceUrl,
+                    aiRequest,
+                    Object.class
+                );
             } catch (RestClientException e) {
                 log.error("AI Service Error: {}", e.getMessage());
                 return Map.of("error", "AI Service Unreachable");
@@ -108,6 +113,9 @@ public class GoogleRoutingService {
         } catch (ApiException | IOException | InterruptedException e) {
             log.error("Fatal routing error", e);
             return Map.of("error", "Processing Error", "message", e.getMessage());
+
+        } finally {
+            context.shutdown();
         }
     }
 

@@ -16,16 +16,21 @@ public class UserService {
 
     public Users findByEmail(String email) {
         return userRepository.findById(email)
-                .orElseThrow(() -> new RuntimeException("User not found: " + email));
+                .orElseGet(() -> {
+                    Users newUser = new Users();
+                    newUser.setEmail(email);
+                    newUser.setFullName("Unknown");
+                    return userRepository.save(newUser);
+                });
     }
 
     public Users updateOrCreateUser(String email, String name, String avatarUrl) {
         Users user = userRepository.findById(email).orElse(new Users());
-        
+
         user.setEmail(email);
         user.setFullName(name);
         user.setAvatarUrl(avatarUrl);
-        
+
         return userRepository.save(user);
     }
 }

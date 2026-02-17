@@ -33,6 +33,8 @@ services:
         COPY main.py .
         EXPOSE 8000
         CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+    volumes:
+      - ./python_research/models:/app/python_research/models
     container_name: ai-service
     environment:
       - GOOGLE_API_KEY=${GOOGLE_API_KEY}

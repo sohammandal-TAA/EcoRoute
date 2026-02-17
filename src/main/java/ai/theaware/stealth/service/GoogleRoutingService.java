@@ -55,7 +55,8 @@ public class GoogleRoutingService {
         this.geometryFactory = new GeometryFactory(new PrecisionModel(), 4326);
     }
 
-    @Cacheable(value = "aqi_routes", key = "{#sLat, #sLon, #dLat, #dLon, #user.email}")
+    @Cacheable(value = "aqi_routes", 
+           key = "#sLat + ',' + #sLon + ',' + #dLat + ',' + #dLon + ',' + #user.email")
     public Object processRoute(Double sLat, Double sLon, Double dLat, Double dLon, Users user) {
         System.out.println("[CACHE MISS] Processing fresh request for user: " + user.getEmail());
 

@@ -1,13 +1,13 @@
-import React, { useRef } from 'react';
+import React from 'react';
+import { Routes, Route, Navigate } from 'react-router-dom';
 import Hero from './components/Hero';
 import HowItWorks from './components/HowItWorks';
 import SmartDataSection from './components/SmartDataSection';
 import NewsletterSection from './components/NewsletterSection';
 import Footer from './components/Footer';
+import Dashboard from './pages/Dashboard';
 
-const App: React.FC = () => {
-
-  // Generic scroll function that works for any ID
+const Landing: React.FC = () => {
   const scrollToId = (id: string) => {
     const element = document.getElementById(id);
     if (element) {
@@ -22,11 +22,10 @@ const App: React.FC = () => {
       <div className="relative z-10 mx-auto flex min-h-screen max-w-6xl flex-col px-4 pb-10 pt-5 sm:px-6 lg:px-8">
         <header className="mb-4 flex items-center justify-between gap-4 pt-1 sm:pt-2">
           <div className="flex items-center gap-2">
-            <span className="">
-            </span>
+            <span className="" />
             <div className="relative flex items-center gap-3 group">
-              <div className="w-[3px] h-10 rounded-full bg-gradient-to-b from-emerald-400 to-green-600"></div>
-                🍃
+              <div className="w-[3px] h-10 rounded-full bg-gradient-to-b from-emerald-400 to-green-600" />
+              🍃
               <div className="leading-tight">
                 <p className="text-sm font-semibold tracking-tight bg-gradient-to-r from-emerald-400 to-green-600 bg-clip-text text-transparent">
                   EcoRoute.ai
@@ -36,7 +35,6 @@ const App: React.FC = () => {
                 </p>
               </div>
             </div>
-
           </div>
 
           <nav className="hidden items-center gap-6 text-xs text-muted-text sm:flex">
@@ -59,9 +57,13 @@ const App: React.FC = () => {
             >
               Log In
             </a>
-            <button type="button" className="primary-cta px-4 py-2 text-xs">
+            <a
+              href="http://localhost:8080/oauth2/authorization/google"
+              className="primary-cta px-4 py-2 text-xs"
+              aria-label="Get started with EcoRoute using Google login"
+            >
               Get Started
-            </button>
+            </a>
           </div>
         </header>
 
@@ -71,10 +73,20 @@ const App: React.FC = () => {
           <SmartDataSection />
           <NewsletterSection />
         </main>
-      </div >
+      </div>
 
-  <Footer />
-    </div >
+      <Footer />
+    </div>
+  );
+};
+
+const App: React.FC = () => {
+  return (
+    <Routes>
+      <Route path="/" element={<Landing />} />
+      <Route path="/dashboard" element={<Dashboard />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   );
 };
 

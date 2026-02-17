@@ -12,8 +12,8 @@ retry_requests
 tensorflow
 joblib
 torch
-# transformers
-# scikit-learn
-# matplotlib
-# seaborn
+transformers
+scikit-learn
+matplotlib
+seaborn
 "granite-tsfm[notebooks] @ git+https://github.com/ibm-granite/granite-tsfm.git@v0.2.22"

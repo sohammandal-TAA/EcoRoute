@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useRef } from 'react';
 import Hero from './components/Hero';
 import HowItWorks from './components/HowItWorks';
 import SmartDataSection from './components/SmartDataSection';
@@ -6,6 +6,15 @@ import NewsletterSection from './components/NewsletterSection';
 import Footer from './components/Footer';
 
 const App: React.FC = () => {
+
+  // Generic scroll function that works for any ID
+  const scrollToId = (id: string) => {
+    const element = document.getElementById(id);
+    if (element) {
+      element.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
   return (
     <div className="page-shell min-h-screen text-white">
       <div className="grid-overlay pointer-events-none fixed inset-0 opacity-30" />
@@ -17,7 +26,7 @@ const App: React.FC = () => {
             </span>
             <div className="relative flex items-center gap-3 group">
               <div className="w-[3px] h-10 rounded-full bg-gradient-to-b from-emerald-400 to-green-600"></div>
-
+                🍃
               <div className="leading-tight">
                 <p className="text-sm font-semibold tracking-tight bg-gradient-to-r from-emerald-400 to-green-600 bg-clip-text text-transparent">
                   EcoRoute.ai
@@ -31,14 +40,14 @@ const App: React.FC = () => {
           </div>
 
           <nav className="hidden items-center gap-6 text-xs text-muted-text sm:flex">
-            <button type="button" className="hover:text-white">
+            <button type="button" onClick={() => scrollToId('Features')} className="hover:text-white">
               Features
             </button>
-            <button type="button" className="hover:text-white">
+            <button type="button" onClick={() => scrollToId('how-it-works')} className="hover:text-white">
               How it Works
             </button>
-            <button type="button" className="hover:text-white">
-              API
+            <button type="button" onClick={() => scrollToId('Contact')} className="hover:text-white">
+              Contact
             </button>
           </nav>
 

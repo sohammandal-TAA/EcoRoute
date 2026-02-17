@@ -7,7 +7,7 @@ const Footer: React.FC = () => {
         <div className="space-y-3">
           <div className="inline-flex items-center gap-2 text-sm font-semibold text-white">
             <span className="flex h-7 w-7 items-center justify-center rounded-full bg-accent-green/15 text-[13px] text-accent-green-soft">
-              ER
+              🍃
             </span>
             <span>EcoRoute.ai</span>
           </div>

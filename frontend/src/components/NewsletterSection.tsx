@@ -2,7 +2,7 @@ import React from 'react';
 
 const NewsletterSection: React.FC = () => {
   return (
-    <section className="mx-auto mb-16 mt-6 max-w-3xl text-center">
+    <section id = "Contact" className="mx-auto mb-16 mt-6 max-w-3xl text-center scroll-mt-24">
       <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent-green-soft">
         Stay informed about your local air quality
       </p>

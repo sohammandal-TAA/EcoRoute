@@ -20,7 +20,7 @@ const steps = [
 
 const HowItWorks: React.FC = () => {
   return (
-    <section className="mx-auto mb-20 mt-4 max-w-5xl">
+    <section id="how-it-works" className="mx-auto mb-20 mt-4 max-w-5xl scroll-mt-24">
       <div className="mb-10 text-center">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent-green-soft">
           How it Works

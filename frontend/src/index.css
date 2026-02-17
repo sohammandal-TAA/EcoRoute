@@ -2,12 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
-html,
-body,
-#root {
-  height: 100%;
+* { scroll-behavior: smooth !important; }
+
+html {
+  scroll-behavior: smooth; 
+  height: -webkit-fill-available;
 }
 
+body, #root {
+  min-height: 100%; 
+  overflow-x: hidden;
+}
+section[id] {
+  scroll-margin-top: 100px;
+}
 body {
   @apply bg-page-bg text-white antialiased;
 }

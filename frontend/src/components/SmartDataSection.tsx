@@ -2,7 +2,7 @@ import React from 'react';
 
 const SmartDataSection: React.FC = () => {
   return (
-    <section className="mx-auto mb-20 max-w-6xl">
+    <section id = "Features" className="mx-auto mb-20 max-w-6xl scroll-mt-24">
       <div className="grid gap-10 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)] lg:items-center">
         <div className="rounded-3xl border border-soft/70 bg-card-bg/80 p-6 shadow-card-soft">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-accent-green-soft">
@@ -44,7 +44,7 @@ const SmartDataSection: React.FC = () => {
           <div className="mt-6 space-y-4 text-sm text-muted-text">
             <div className="flex gap-3">
               <div className="mt-1 h-6 w-6 rounded-2xl bg-accent-green/15 text-center text-xs leading-6 text-accent-green-soft">
-                12h
+                📊
               </div>
               <div>
                 <p className="font-semibold text-white/95">12-Hour AQI Prediction</p>
@@ -56,7 +56,7 @@ const SmartDataSection: React.FC = () => {
 
             <div className="flex gap-3">
               <div className="mt-1 h-6 w-6 rounded-2xl bg-accent-blue/15 text-center text-xs leading-6 text-accent-blue">
-                PE
+                🛡️
               </div>
               <div>
                 <p className="font-semibold text-white/95">Personal Exposure Tracking</p>

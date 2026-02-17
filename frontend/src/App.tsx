@@ -6,6 +6,7 @@ import NewsletterSection from './components/NewsletterSection';
 import Footer from './components/Footer';
 
 const App: React.FC = () => {
+  const LOGIN_URL = 'http://localhost:8080/oauth2/authorization/google';
 
   // Generic scroll function that works for any ID
   const scrollToId = (id: string) => {
@@ -52,9 +53,13 @@ const App: React.FC = () => {
           </nav>
 
           <div className="flex items-center gap-2">
-            <button type="button" className="secondary-cta hidden px-4 py-2 text-xs sm:inline-flex">
+            <a
+              href={LOGIN_URL}
+              className="secondary-cta hidden px-4 py-2 text-xs sm:inline-flex"
+              aria-label="Log in with Google"
+            >
               Log In
-            </button>
+            </a>
             <button type="button" className="primary-cta px-4 py-2 text-xs">
               Get Started
             </button>

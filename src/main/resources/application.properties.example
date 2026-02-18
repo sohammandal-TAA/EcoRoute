@@ -14,17 +14,24 @@ spring.datasource.driver-class-name=org.postgresql.Driver
 
 # JPA
 spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
-spring.jpa.hibernate.ddl-auto=update
+spring.jpa.hibernate.ddl-auto=validate
 spring.jpa.show-sql=true
 spring.jpa.open-in-view=false
 
 # Google Maps
 google.maps.api.key=
 
-# Base URL for AI Service
-app.ai.service.url=
+# Env var references
+app.frontend.base-url=${FRONTEND_URL}
+app.ai.service.url=${APP_AI_SERVICE_URL}
+app.ai.predict-url=${APP_AI_PREDICT_URL}
 
 # Thread pool for @Async
 spring.task.execution.pool.core-size=5
 spring.task.execution.pool.max-size=10
 spring.task.execution.pool.queue-capacity=25
+
+# Logging Configuration
+logging.level.root=INFO
+logging.level.ai.theaware.stealth=DEBUG
+logging.pattern.console=%d{yyyy-MM-dd HH:mm:ss} - %logger{36} - %msg%n

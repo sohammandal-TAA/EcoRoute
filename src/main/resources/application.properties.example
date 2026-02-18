@@ -1,0 +1,30 @@
+spring.application.name=stealth
+server.port=8080
+
+# OAuth2
+spring.security.oauth2.client.registration.google.client-id=
+spring.security.oauth2.client.registration.google.client-secret=
+spring.security.oauth2.client.registration.google.scope=openid,email,profile
+
+# Database Config
+spring.datasource.url=jdbc:postgresql://postgres:5432/stealth_db
+spring.datasource.username=
+spring.datasource.password=
+spring.datasource.driver-class-name=org.postgresql.Driver
+
+# JPA
+spring.jpa.database-platform=org.hibernate.dialect.PostgreSQLDialect
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=true
+spring.jpa.open-in-view=false
+
+# Google Maps
+google.maps.api.key=
+
+# Base URL for AI Service
+app.ai.service.url=
+
+# Thread pool for @Async
+spring.task.execution.pool.core-size=5
+spring.task.execution.pool.max-size=10
+spring.task.execution.pool.queue-capacity=25

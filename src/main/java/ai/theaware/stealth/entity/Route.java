@@ -2,6 +2,8 @@ package ai.theaware.stealth.entity;
 
 import java.time.LocalDateTime;
 
+import org.locationtech.jts.geom.LineString;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -30,7 +32,7 @@ public class Route {
     private Double endLon;
 
     @Column(name = "geom", columnDefinition = "geometry(LineString, 4326)")
-    private org.locationtech.jts.geom.LineString geom;
+    private LineString geom;
 
     private LocalDateTime createdAt;
 }

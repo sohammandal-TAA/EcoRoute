@@ -1,0 +1,18 @@
+# requirements-docker.txt
+
+# API & Server
+fastapi
+uvicorn
+requests
+
+# Model Inference
+tensorflow
+joblib
+scikit-learn 
+
+# Kriging (route analysis)
+pykrige
+numpy
+
+# Env
+python-dotenv

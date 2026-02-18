@@ -51,7 +51,7 @@ const Dashboard: React.FC = () => {
 
       // Flexible Data Hydration
       setRoutes(data.routes || data.routeOptions || []);
-      
+
       const aq = data.airQuality ?? data.air_quality;
       if (aq) {
         setAirQuality({
@@ -79,27 +79,34 @@ const Dashboard: React.FC = () => {
   // Effect to watch for coordinate changes and trigger the backend
   useEffect(() => {
     if (!originCoords || !destinationCoords) return;
-  
+
     const timeout = setTimeout(() => {
       fetchEcoData(originCoords, destinationCoords);
     }, 800); // throttle backend calls
-  
+
     return () => clearTimeout(timeout);
   }, [originCoords, destinationCoords]);
-  
 
-  const handleSearchDestination = async (
+
+  const handleSearchDestination = useCallback(async (
     placeIdOrQuery: string,
     description?: string
   ) => {
     if (!window.google?.maps) return;
-  
+
+    // 🔥 Clear old data when new search begins
+    setRoutes([]);
+    setAirQuality(null);
+    setSensors(null);
+    setForecast(null);
+    setRouteInfo(null);
+
     // 🔥 If it looks like a place_id, use PlacesService
     if (placeIdOrQuery.startsWith("ChIJ") && window.google.maps.places) {
       const service = new window.google.maps.places.PlacesService(
         document.createElement("div")
       );
-  
+
       service.getDetails(
         { placeId: placeIdOrQuery },
         (place, status) => {
@@ -108,7 +115,7 @@ const Dashboard: React.FC = () => {
             place?.geometry?.location
           ) {
             const loc = place.geometry.location;
-  
+
             setDestinationCoords({
               lat: loc.lat(),
               lng: loc.lng(),
@@ -118,17 +125,17 @@ const Dashboard: React.FC = () => {
           }
         }
       );
-  
+
       return;
     }
-  
+
     // 🔥 Otherwise fallback to normal address search
     const geocoder = new window.google.maps.Geocoder();
-  
+
     geocoder.geocode({ address: placeIdOrQuery }, (results, status) => {
       if (status === "OK" && results?.[0]?.geometry?.location) {
         const loc = results[0].geometry.location;
-  
+
         setDestinationCoords({
           lat: loc.lat(),
           lng: loc.lng(),
@@ -137,9 +144,9 @@ const Dashboard: React.FC = () => {
         console.error("Failed to geocode destination", status);
       }
     });
-  };
-  
-  
+  }, []);
+
+
   return (
     <div className={`dashboard ${isDarkMode ? 'dark' : 'light'}`}>
       <Topbar
@@ -158,10 +165,10 @@ const Dashboard: React.FC = () => {
 
       <main className="dashboard-content">
         <div className="dashboard-columns">
-          <AlternativeRoutes 
-            isDarkMode={isDarkMode} 
-            routeInfo={routeInfo} 
-            routes={routes} 
+          <AlternativeRoutes
+            isDarkMode={isDarkMode}
+            routeInfo={routeInfo}
+            routes={routes}
           />
           <div className="dashboard-right-col">
             <AirQualityCard isDarkMode={isDarkMode} data={airQuality} />

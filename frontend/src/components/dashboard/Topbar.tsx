@@ -19,6 +19,7 @@ const Topbar: React.FC<TopbarProps> = ({
   const [suggestions, setSuggestions] = useState<
     google.maps.places.AutocompletePrediction[]
   >([]);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
 
   const displayName = (userName || "Guest").trim();
   const initials =
@@ -34,9 +35,10 @@ const Topbar: React.FC<TopbarProps> = ({
 
     console.log("Google object:", window.google);
     console.log("Places available:", window.google?.maps?.places);
-    
+
     if (!searchQuery || !window.google?.maps?.places) {
       setSuggestions([]);
+      setSelectedIndex(-1);
       return;
     }
 
@@ -51,6 +53,7 @@ const Topbar: React.FC<TopbarProps> = ({
         console.log("Predictions:", predictions);
         console.log("Status:", status);
         setSuggestions(predictions || []);
+        setSelectedIndex(-1);
       }
     );
   }, [searchQuery]);
@@ -58,11 +61,40 @@ const Topbar: React.FC<TopbarProps> = ({
   const handleSelect = (
     prediction: google.maps.places.AutocompletePrediction
   ) => {
-    setSearchQuery(prediction.description);
+    // Clear search query to prevent refetching suggestions & show clean input after selection
+    setSearchQuery('');
     setSuggestions([]);
+    setSelectedIndex(-1);
 
     if (onSearchDestination) {
       onSearchDestination(prediction.place_id, prediction.description);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (suggestions.length === 0) return;
+
+    switch (e.key) {
+      case "ArrowDown":
+        e.preventDefault();
+        setSelectedIndex((prev) =>
+          prev < suggestions.length - 1 ? prev + 1 : prev
+        );
+        break;
+      case "ArrowUp":
+        e.preventDefault();
+        setSelectedIndex((prev) => (prev > 0 ? prev - 1 : -1));
+        break;
+      case "Enter":
+        e.preventDefault();
+        if (selectedIndex >= 0 && suggestions[selectedIndex]) {
+          handleSelect(suggestions[selectedIndex]);
+        }
+        break;
+      case "Escape":
+        setSuggestions([]);
+        setSelectedIndex(-1);
+        break;
     }
   };
 
@@ -83,6 +115,7 @@ const Topbar: React.FC<TopbarProps> = ({
           className="dashboard-search-input"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
+          onKeyDown={handleKeyDown}
         />
 
         {suggestions.length > 0 && (
@@ -100,14 +133,19 @@ const Topbar: React.FC<TopbarProps> = ({
               overflowY: "auto",
             }}
           >
-            {suggestions.map((place) => (
+            {suggestions.map((place, index) => (
               <div
                 key={place.place_id}
                 onClick={() => handleSelect(place)}
                 style={{
                   padding: "10px 14px",
                   cursor: "pointer",
+                  backgroundColor:
+                    selectedIndex === index ? "#f0f0f0" : "white",
+                  transition: "background-color 0.2s",
                 }}
+                onMouseEnter={() => setSelectedIndex(index)}
+                onMouseLeave={() => setSelectedIndex(-1)}
               >
                 {place.description}
               </div>

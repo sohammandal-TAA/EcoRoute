@@ -8,7 +8,7 @@ const EcoProCard: React.FC<EcoProCardProps> = () => {
   return (
     <section className="eco-pro-card">
       <div className="eco-pro-main">
-        <div className="eco-pro-icon">🌿</div>
+        <div className="eco-pro-icon">🍃</div>
         <div>
           <h2>Eco Pro Plan</h2>
           <p>

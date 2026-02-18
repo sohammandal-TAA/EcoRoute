@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react"; // Added useRef
 
 interface TopbarProps {
   isDarkMode: boolean;
@@ -23,6 +23,20 @@ const Topbar: React.FC<TopbarProps> = ({
   >([]);
   const [selectedIndex, setSelectedIndex] = useState(-1);
 
+  // 🔥 Refs for autoscrolling
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
+
+  // 🔥 Autoscroll effect: triggers when keyboard selection changes
+  useEffect(() => {
+    if (selectedIndex >= 0 && itemRefs.current[selectedIndex]) {
+      itemRefs.current[selectedIndex]?.scrollIntoView({
+        behavior: "smooth",
+        block: "nearest",
+      });
+    }
+  }, [selectedIndex]);
+
   const displayName = (userName || "Guest").trim();
   const initials =
     displayName
@@ -34,7 +48,6 @@ const Topbar: React.FC<TopbarProps> = ({
 
   // 🔥 Autocomplete logic
   useEffect(() => {
-
     console.log("Google object:", window.google);
     console.log("Places available:", window.google?.maps?.places);
 
@@ -56,6 +69,8 @@ const Topbar: React.FC<TopbarProps> = ({
         console.log("Status:", status);
         setSuggestions(predictions || []);
         setSelectedIndex(-1);
+        // Clear old refs when new suggestions arrive
+        itemRefs.current = [];
       }
     );
   }, [searchQuery]);
@@ -103,7 +118,7 @@ const Topbar: React.FC<TopbarProps> = ({
   return (
     <header className="dashboard-topbar">
       <div className="dashboard-topbar-left" onClick={onLogoClick} style={{ cursor: 'pointer' }}>
-        <div className="dashboard-logo-mark">🌿</div>
+        <div className="dashboard-logo-mark">🍃</div>
         <div className="dashboard-logo-text">
           <span className="brand">EcoRoute</span>
           <span className="badge">ai</span>
@@ -122,12 +137,13 @@ const Topbar: React.FC<TopbarProps> = ({
 
         {suggestions.length > 0 && (
           <div
+            ref={scrollContainerRef} // Attached ref for the container
             style={{
               position: "absolute",
               top: "100%",
               left: 0,
               right: 0,
-              background: "white",
+              background: isDarkMode ? "#1a4d2e" : "white",
               borderRadius: "8px",
               boxShadow: "0 8px 20px rgba(0,0,0,0.15)",
               zIndex: 1000,
@@ -138,12 +154,16 @@ const Topbar: React.FC<TopbarProps> = ({
             {suggestions.map((place, index) => (
               <div
                 key={place.place_id}
+                ref={(el) => (itemRefs.current[index] = el)} // Added individual item refs
                 onClick={() => handleSelect(place)}
                 style={{
                   padding: "10px 14px",
                   cursor: "pointer",
                   backgroundColor:
-                    selectedIndex === index ? "#f0f0f0" : "white",
+                    selectedIndex === index 
+                      ? (isDarkMode ? "#2d6a4f" : "#f0f0f0")
+                      : (isDarkMode ? "#1a4d2e" : "white"),
+                  color: isDarkMode ? "#e8f5e9" : "#000",
                   transition: "background-color 0.2s",
                 }}
                 onMouseEnter={() => setSelectedIndex(index)}

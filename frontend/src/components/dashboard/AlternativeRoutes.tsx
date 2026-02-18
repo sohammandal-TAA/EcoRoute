@@ -38,7 +38,7 @@ const AlternativeRoutes: React.FC<AlternativeRoutesProps> = ({ routeInfo, routes
                 <p className="route-meta">
                   <span>● {durationSuffix ?? route.duration} min</span>
                   <span>● {route.distance}</span>
-                  {route.pollutionLevel === 'low' && <span>🌿 Eco</span>}
+                  {route.pollutionLevel === 'low' && <span>🍃 Eco</span>}
                 </p>
               </div>
               <div className={`route-score ${badgeColor(route.pollutionLevel)}`}>

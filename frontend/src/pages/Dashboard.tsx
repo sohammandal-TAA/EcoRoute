@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Topbar from '../components/dashboard/Topbar';
 import NavigationMap from '../components/dashboard/NavigationMap';
 import AlternativeRoutes from '../components/dashboard/AlternativeRoutes';
@@ -10,6 +11,7 @@ import type { ForecastBar, RouteOption, SensorData } from '../components/dashboa
 import '../styles/dashboard.css';
 
 const Dashboard: React.FC = () => {
+  const navigate = useNavigate();
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [routeInfo, setRouteInfo] = useState<{ distance: string; duration: string } | null>(null);
   const [userName, setUserName] = useState<string>('Guest');
@@ -71,6 +73,30 @@ const Dashboard: React.FC = () => {
       }
 
       setForecast(data.forecast || data.forecastBars || []);
+
+      // 🔥 Fetch AI predictions after route processing
+      try {
+        const predictionResponse = await fetch('http://localhost:8080/api/routes/predict', {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        if (predictionResponse.ok) {
+          const predictionData = await predictionResponse.json();
+          if (predictionData.forecast_data?.station_0) {
+            const forecastArray = predictionData.forecast_data.station_0.map((item: { time: string; aqi: number; health_info?: { category: string; color: string } }) => ({
+              time: item.time,
+              value: item.aqi,
+              level: item.health_info?.category?.toLowerCase() === 'low' ? 'low' :
+                item.health_info?.category?.toLowerCase() === 'high' ? 'high' :
+                  'medium',
+            }));
+            setForecast(forecastArray);
+          }
+        }
+      } catch (predictionError) {
+        console.warn('AI prediction fetch failed, using default forecast:', predictionError);
+      }
     } catch (error) {
       console.error('Error fetching EcoRoute data:', error);
     }
@@ -87,6 +113,10 @@ const Dashboard: React.FC = () => {
     return () => clearTimeout(timeout);
   }, [originCoords, destinationCoords]);
 
+  // 🔥 Handle logo click to redirect to landing page
+  const handleLogoClick = useCallback(() => {
+    navigate('/');
+  }, [navigate]);
 
   const handleSearchDestination = useCallback(async (
     placeIdOrQuery: string,
@@ -154,6 +184,7 @@ const Dashboard: React.FC = () => {
         onToggleTheme={() => setIsDarkMode((prev) => !prev)}
         userName={userName}
         onSearchDestination={handleSearchDestination}
+        onLogoClick={handleLogoClick}
       />
 
       <NavigationMap

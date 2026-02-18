@@ -198,7 +198,7 @@ const NavigationMap: React.FC<NavigationMapProps> = ({
         style={{
           position: 'absolute',
           bottom: '20px',
-          right: '20px',
+          right: '80px',
           zIndex: 10,
           padding: '8px 12px',
           backgroundColor: '#4285F4',

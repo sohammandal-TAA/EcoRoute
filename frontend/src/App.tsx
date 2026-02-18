@@ -1,5 +1,5 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, Link } from 'react-router-dom';
 import Hero from './components/Hero';
 import HowItWorks from './components/HowItWorks';
 import SmartDataSection from './components/SmartDataSection';
@@ -50,20 +50,21 @@ const Landing: React.FC = () => {
           </nav>
 
           <div className="flex items-center gap-2">
-            <a
-              href="http://localhost:8080/oauth2/authorization/google"
+            {/* TEMP: Frontend-only mock login while backend is not ready */}
+            <Link
+              to="/dashboard"
               className="secondary-cta hidden px-4 py-2 text-xs sm:inline-flex"
-              aria-label="Log in with Google"
+              aria-label="Log in (mock, backend not yet connected)"
             >
               Log In
-            </a>
-            <a
-              href="http://localhost:8080/oauth2/authorization/google"
+            </Link>
+            <Link
+              to="/dashboard"
               className="primary-cta px-4 py-2 text-xs"
-              aria-label="Get started with EcoRoute using Google login"
+              aria-label="Get started (mock, skips Google OAuth while backend is WIP)"
             >
               Get Started
-            </a>
+            </Link>
           </div>
         </header>
 

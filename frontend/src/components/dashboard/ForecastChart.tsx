@@ -1,9 +1,10 @@
 import React from 'react';
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis } from 'recharts';
-import { MOCK_FORECAST } from './dashboardData';
+import { ForecastBar } from './dashboardData';
 
 interface ForecastChartProps {
   isDarkMode: boolean;
+  data?: ForecastBar[] | null;
 }
 
 const barColor = (level: 'low' | 'medium' | 'high') => {
@@ -12,7 +13,9 @@ const barColor = (level: 'low' | 'medium' | 'high') => {
   return '#ef9a9a';
 };
 
-const ForecastChart: React.FC<ForecastChartProps> = () => {
+const ForecastChart: React.FC<ForecastChartProps> = ({ data }) => {
+  const items = data ?? [];
+
   return (
     <section className="dashboard-card forecast-card">
       <header className="forecast-header">
@@ -33,7 +36,7 @@ const ForecastChart: React.FC<ForecastChartProps> = () => {
 
       <div className="forecast-chart-inner">
         <ResponsiveContainer width="100%" height={140}>
-          <BarChart data={MOCK_FORECAST} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+          <BarChart data={items} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
             <CartesianGrid vertical={false} strokeDasharray="3 3" />
             <XAxis dataKey="time" tickLine={false} axisLine={false} />
             <XAxis hide />
@@ -44,7 +47,7 @@ const ForecastChart: React.FC<ForecastChartProps> = () => {
               isAnimationActive={false}
               fill="#4caf50"
             >
-              {MOCK_FORECAST.map((entry, index) => (
+              {items.map((entry, index) => (
                 // eslint-disable-next-line react/no-array-index-key
                 <Cell key={index} fill={barColor(entry.level)} />
               ))}

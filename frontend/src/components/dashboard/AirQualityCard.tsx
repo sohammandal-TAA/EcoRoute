@@ -1,18 +1,31 @@
 import React from 'react';
-import { MOCK_AQI, MOCK_KG_SAVED, MOCK_PERCENT } from './dashboardData';
+
+interface AirQualitySnapshot {
+  /** e.g. overall AQI along the selected route */
+  aqiIndex?: number | null;
+  /** e.g. kilograms of pollutants avoided */
+  kgSaved?: number | null;
+  /** e.g. progress towards weekly goal, 0–100 */
+  goalPercent?: number | null;
+}
 
 interface AirQualityCardProps {
   isDarkMode: boolean;
+  data?: AirQualitySnapshot | null;
 }
 
-const AirQualityCard: React.FC<AirQualityCardProps> = () => {
+const AirQualityCard: React.FC<AirQualityCardProps> = ({ data }) => {
+  const kgSaved = data?.kgSaved ?? null;
+  const goalPercent = data?.goalPercent ?? null;
+  const aqiIndex = data?.aqiIndex ?? null;
+
   return (
     <section className="dashboard-card aq-card">
       <div className="aq-left">
         <div className="aq-tag">no CO₂ gained</div>
         <div className="aq-main">
           <div className="aq-kg">
-            {MOCK_KG_SAVED}
+            {kgSaved != null ? kgSaved : '—'}
             <span>kg</span>
           </div>
           <p className="aq-subtitle">Reduced inhalation</p>
@@ -23,12 +36,16 @@ const AirQualityCard: React.FC<AirQualityCardProps> = () => {
       </div>
       <div className="aq-right">
         <p className="aq-label">Current level</p>
-        <p className="aq-percent">{MOCK_PERCENT}%</p>
+        <p className="aq-percent">
+          {goalPercent != null ? `${goalPercent}%` : '—'}
+        </p>
         <div className="aq-progress">
           <div className="aq-progress-fill" />
         </div>
         <p className="aq-footnote">Towards your weekly clean air goal</p>
-        <p className="aq-index">Route index: {MOCK_AQI}</p>
+        {aqiIndex != null && (
+          <p className="aq-index">Route index: {aqiIndex}</p>
+        )}
       </div>
     </section>
   );

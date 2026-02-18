@@ -1,12 +1,13 @@
 import React from 'react';
-import { DashboardRouteInfo, MOCK_ROUTES } from './dashboardData';
+import { DashboardRouteInfo, RouteOption } from './dashboardData';
 
 interface AlternativeRoutesProps {
   isDarkMode: boolean;
   routeInfo: DashboardRouteInfo | null;
+  routes?: RouteOption[];
 }
 
-const AlternativeRoutes: React.FC<AlternativeRoutesProps> = ({ routeInfo }) => {
+const AlternativeRoutes: React.FC<AlternativeRoutesProps> = ({ routeInfo, routes = [] }) => {
   const badgeColor = (level: 'low' | 'medium' | 'high') => {
     if (level === 'low') return 'badge-low';
     if (level === 'medium') return 'badge-medium';
@@ -28,7 +29,7 @@ const AlternativeRoutes: React.FC<AlternativeRoutesProps> = ({ routeInfo }) => {
       </header>
 
       <div className="routes-list">
-        {MOCK_ROUTES.map((route) => (
+        {routes.map((route) => (
           <article key={route.id} className="route-item">
             <div className={`route-label ${badgeColor(route.pollutionLevel)}`}>{route.label}</div>
             <div className="route-main">

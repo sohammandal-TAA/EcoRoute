@@ -34,3 +34,4 @@ class RouteRequest(BaseModel):
     sLon: float
     dLat: float
     dLon: float
+    routes: Optional[List[RouteData]]

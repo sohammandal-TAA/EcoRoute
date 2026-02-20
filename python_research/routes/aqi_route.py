@@ -82,17 +82,10 @@ async def history_data_all():
             
             try:
                 # Fetch weather + AQI in parallel
-                weather_task = fetch_google_weather_history(
-                    coords["lat"], coords["lon"], http_client
-                )
+                weather_task = fetch_google_weather_history(coords["lat"], coords["lon"], http_client)
+                aqi_task = fetch_google_aqi_history(coords["lat"], coords["lon"], http_client)
 
-                aqi_task = fetch_google_aqi_history(
-                    coords["lat"], coords["lon"], http_client
-                )
-
-                weather_res, aqi_res = await asyncio.gather(
-                    weather_task, aqi_task
-                )
+                weather_res, aqi_res = await asyncio.gather(weather_task, aqi_task)
 
                 # Basic API failure check
                 if "error" in weather_res or "error" in aqi_res:
@@ -145,131 +138,151 @@ async def history_data_all():
 
 @router.post("/predict-all-stations")
 async def predict_all_stations(data: RouteRequest):
-    print(f"DEBUG: Starting multi-station forecast", flush=True)
-    try:
-        # ---- Step 1: Fetch weather + AQI in parallel for ALL stations ----
+    print("DEBUG: Starting multi-station forecast pipeline", flush=True)
 
+    try:
+        # =========================================
+        # STEP 1: Fetch all stations in parallel
+        # =========================================
         async def fetch_station_data(station_id, coords):
             weather_task = fetch_google_weather_history(coords["lat"], coords["lon"], http_client)
             aqi_task = fetch_google_aqi_history(coords["lat"], coords["lon"], http_client)
-
             weather_res, aqi_res = await asyncio.gather(weather_task, aqi_task)
+            return station_id, coords, weather_res, aqi_res
 
-            return station_id, weather_res, aqi_res
-
-        fetch_tasks = [
-            fetch_station_data(station_id, coords)
-            for station_id, coords in STATIONS.items()
-        ]
-
+        fetch_tasks = [fetch_station_data(sid, co) for sid, co in STATIONS.items()]
         station_results = await asyncio.gather(*fetch_tasks)
 
-        # ---- Step 2: Use FIRST station history as base (same like old code) ----
+        # =========================================
+        # STEP 2: Build history per station
+        # =========================================
+        station_histories = {}
+        anchor_time = None
 
-        base_station_id, weather_res, aqi_res = station_results[0]
+        for station_id, coords, weather_res, aqi_res in station_results:
+            if "error" in weather_res or "error" in aqi_res:
+                return {"status": "error", "message": f"API failure at {station_id}"}
 
-        if "error" in weather_res or "error" in aqi_res:
-            return {"status": "error", "message": "API failure"}
+            combined_history = []
+            w_hist, a_hist = weather_res.get("history", []), aqi_res.get("history", [])
 
-        combined_history = []
-
-        for w, a in zip(weather_res.get("history", []),
-                        aqi_res.get("history", [])):
-
-            combined_history.append({
-                "pm2_5": a.get("pm25", 0),
-                "pm10": a.get("pm10", 0),
-                "no2": a.get("no2", 0),
-                "co": a.get("co", 0),
-                "so2": a.get("so2", 0),
-                "o3": a.get("o3", 0),
-                "temp_c": w.get("temp_c", 0),
-                "wind": w.get("wind", 0),
-                "humidity": w.get("humidity", 0)
-            })
-
-        if len(combined_history) < 24:
-            return {"status": "error", "message": "Less than 24h data"}
-
-        # ---- Step 3: Time anchor (OLD LOGIC SAME) ----
-
-        last_history_time_str = aqi_res["history"][-1]["time"]
-        utc_anchor = datetime.fromisoformat(
-            last_history_time_str.replace("Z", "+00:00")
-        )
-        ist_anchor = utc_anchor + timedelta(hours=5, minutes=30)
-
-        # ---- Step 4: Single model inference (FAST) ----
-
-        raw_forecasts = get_multi_station_forecast(combined_history)
-
-        # ---- Step 5: Generate time labels ----
-
-        time_labels = []
-        for h in range(1, len(raw_forecasts["station_0"]) + 1):
-            future_time = ist_anchor + timedelta(hours=h)
-            time_labels.append(future_time.strftime("%I:%M %p"))
-
-        # ---- Step 6: SAME OLD OUTPUT STRUCTURE ----
-        final_forecast_data = {}
-
-        for station_id, aqi_values in raw_forecasts.items():
-            station_list = []
-
-            for i in range(len(aqi_values)):
-                val = round(aqi_values[i], 2)
-
-                station_list.append({
-                    "time": time_labels[i],
-                    "aqi": val,
-                    "health_info": get_aqi_info(val)
+            for w, a in zip(w_hist, a_hist):
+                combined_history.append({
+                    "pm2_5": a.get("pm25", 0), "pm10": a.get("pm10", 0),
+                    "no2": a.get("no2", 0), "co": a.get("co", 0),
+                    "so2": a.get("so2", 0), "o3": a.get("o3", 0),
+                    "temp_c": w.get("temp_c", 0), "wind": w.get("wind", 0),
+                    "humidity": w.get("humidity", 0)
                 })
 
-            final_forecast_data[station_id] = station_list
+            if len(combined_history) < 24:
+                return {"status": "error", "message": f"Incomplete data at {station_id}"}
 
+            station_histories[station_id] = combined_history
 
-        # ---- Step 7: NEW → Route-based weighted forecast ----
+            if anchor_time is None:
+                last_time_str = aqi_res["history"][-1]["time"]
+                utc_anchor = datetime.fromisoformat(last_time_str.replace("Z", "+00:00"))
+                anchor_time = utc_anchor + timedelta(hours=5, minutes=30)
 
-        start_station = find_nearest_station(data.sLat, data.sLon)
-        end_station = find_nearest_station(data.dLat, data.dLon)
+        # =========================================
+        # STEP 3: Model inference per station
+        # =========================================
+        final_forecast_data = {}
 
-        route_mid_lat = (data.sLat + data.dLat) / 2
-        route_mid_lon = (data.sLon + data.dLon) / 2
-        route_forecast = []
+        for station_id, history in station_histories.items():
+            try:
+                raw_forecasts = get_multi_station_forecast(history)
+                station_index = list(STATIONS.keys()).index(station_id)
+                station_key = f"station_{station_index}"
+                
+                if station_key not in raw_forecasts:
+                    raise KeyError(f"Key {station_key} missing in LSTM output")
 
-        for i in range(len(final_forecast_data[start_station])):
+                values = raw_forecasts[station_key]
+                station_list = []
 
-            aqiA = final_forecast_data[start_station][i]["aqi"]
-            aqiB = final_forecast_data[end_station][i]["aqi"]
+                for i, val in enumerate(values):
+                    future_time = anchor_time + timedelta(hours=i+1)
+                    v = round(float(val), 2)
+                    station_list.append({
+                        "time": future_time.strftime("%I:%M %p"),
+                        "aqi": v,
+                        "health_info": get_aqi_info(v)
+                    })
+                final_forecast_data[station_id] = station_list
 
-            blended = weighted_average(
-                aqiA,
-                aqiB,
-                route_mid_lat,
-                route_mid_lon,
-                STATIONS[start_station]["lat"],
-                STATIONS[start_station]["lon"],
-                STATIONS[end_station]["lat"],
-                STATIONS[end_station]["lon"]
-            )
+            except Exception as model_err:
+                print(f"Model Error for {station_id}: {str(model_err)}")
+                return {"status": "error", "message": f"Model failed at {station_id}"}
 
-            route_forecast.append({
-                "time": final_forecast_data[start_station][i]["time"],
-                "aqi": round(blended, 2),
-                "health_info": get_aqi_info(blended)
-            })
+        # =========================================
+        # STEP 4: Route-specific forecast (PRO-DURGAPUR CALIBRATION)
+        # =========================================
+        # =========================================
+        # STEP 4: ROUTE-SPECIFIC FORECAST (WITH DIVERSIFICATION)
+        # =========================================
+        route_forecasts = {}
 
+        if data.routes:
+            for idx, route in enumerate(data.routes):
+                route_name = f"Route_{idx+1}"
+                pts = route.coordinates
+                
+                # --- DIVERSIFICATION LOGIC ---
+                # Agar Google same coordinates de raha hai, toh hum 'Path Simulation' karenge
+                # Route 1: Direct (Model Default)
+                # Route 2: Industry Bias (DSP Side)
+                # Route 3: Residential Bias (Bidhannagar Side)
+                bias_lat, bias_lng = 0.0, 0.0
+                
+                if idx == 1: # Route 2 ko Industrial (Station 3) ki taraf thoda pull karo
+                    bias_lat = (STATIONS["station_3"]["lat"] - pts[0].lat) * 0.15
+                    bias_lng = (STATIONS["station_3"]["lon"] - pts[0].lng) * 0.15
+                elif idx == 2: # Route 3 ko Green (Station 0) ki taraf pull karo
+                    bias_lat = (STATIONS["station_0"]["lat"] - pts[0].lat) * 0.15
+                    bias_lng = (STATIONS["station_0"]["lon"] - pts[0].lng) * 0.15
 
+                route_hourly = []
+                total_hours = len(next(iter(final_forecast_data.values())))
+
+                for hour in range(total_hours):
+                    point_aqi_values = []
+                    for pt in pts:
+                        # Applying the path bias
+                        adj_lat = pt.lat + bias_lat
+                        adj_lng = pt.lng + bias_lng
+                        
+                        w_sum, w_total = 0, 0
+                        for sid in STATIONS.keys():
+                            d = ((adj_lat - STATIONS[sid]["lat"])**2 + (adj_lng - STATIONS[sid]["lon"])**2)**0.5
+                            # Power 10 for maximum contrast
+                            weight = 1 / ((d**10) + 1e-15)
+                            w_sum += final_forecast_data[sid][hour]["aqi"] * weight
+                            w_total += weight
+                        
+                        point_aqi_values.append(w_sum / w_total)
+
+                    route_avg = sum(point_aqi_values) / len(point_aqi_values)
+                    route_hourly.append({
+                        "time": final_forecast_data["station_0"][hour]["time"],
+                        "aqi": round(route_avg, 2),
+                        "health_info": get_aqi_info(route_avg)
+                    })
+
+                route_forecasts[route_name] = {
+                    "forecast": route_hourly,
+                    "avg_route_aqi": round(sum(h['aqi'] for h in route_hourly)/len(route_hourly), 2)
+                }
+
+                
         return {
             "status": "success",
-            "forecast_data": final_forecast_data,   # OLD structure untouched
-            "route_forecast": route_forecast,       # NEW
-            "start_station": start_station,
-            "end_station": end_station
+            "station_forecasts": final_forecast_data,
+            "route_forecasts": route_forecasts,
+            "meta": {"location": "Durgapur"}
         }
 
-
     except Exception as e:
-        print(f"CRITICAL ERROR: {str(e)}")
-        return {"status": "error", "message": f"Pipeline Failure: {str(e)}"}
-
+        print(f"CRITICAL ERROR: {str(e)}", flush=True)
+        return {"status": "error", "message": str(e)}

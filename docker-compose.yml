@@ -130,28 +130,6 @@ services:
       - stealth-net
 
   stealth-app:
-<<<<<<< Updated upstream
-      build: .
-      container_name: stealth-app
-      depends_on:
-        postgres:
-          condition: service_healthy
-        ai-service:
-          condition: service_started
-      ports:
-        - "8080:8080"
-      environment:
-        - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/stealth_db
-        - SPRING_DATASOURCE_USERNAME=${DB_USERNAME}
-        - SPRING_DATASOURCE_PASSWORD=${DB_PASSWORD}
-        - GOOGLE_MAPS_API_KEY=${GOOGLE_MAPS_API_KEY}
-        - APP_AI_SERVICE_URL=${AI_SERVICE_URL}
-        - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_ID=${SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_ID}
-        - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_SECRET=${SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_SECRET}
-        - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_REDIRECT_URI=${OAUTH2_REDIRECT_URI}
-      networks:
-        - stealth-net
-=======
     build: .
     container_name: stealth-app
     depends_on:
@@ -183,7 +161,6 @@ services:
       - SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_REDIRECT_URI=${OAUTH2_REDIRECT_URI}
     networks:
       - stealth-net
->>>>>>> Stashed changes
 
 networks:
   stealth-net:

@@ -40,8 +40,6 @@ public class RouteController {
 
         Users user = userService.findByEmail(email);
 
-<<<<<<< Updated upstream
-=======
         predictionService.triggerPrediction(
         email,
         request.getSLat(),
@@ -50,7 +48,6 @@ public class RouteController {
         request.getDLon()
     );
 
->>>>>>> Stashed changes
         Object result = googleRoutingService.processRoute(
                 request.getSLat(), 
                 request.getSLon(), 
@@ -61,9 +58,6 @@ public class RouteController {
 
         return ResponseEntity.ok(result);
     }
-<<<<<<< Updated upstream
-}
-=======
 
     @GetMapping("/predict")
     public ResponseEntity<?> getPrediction(
@@ -78,4 +72,3 @@ public class RouteController {
         return ResponseEntity.ok(result);
     }
 }
->>>>>>> Stashed changes

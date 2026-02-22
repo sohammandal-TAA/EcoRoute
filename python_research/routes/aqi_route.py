@@ -14,10 +14,10 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 # Fixed Station Coordinates
 STATIONS = {
-    "station_0": {"lat": 23.51905342888936, "lon": 87.34565136450719},
-    "station_1": {"lat": 23.564018931392827, "lon": 87.31123928017463},
-    "station_2": {"lat": 23.5391718044899, "lon": 87.30401858752859},
-    "station_3": {"lat": 23.554806202241476, "lon": 87.24681601086061},
+    "station_0": {"lat": 23.51905342888936, "lon": 87.34565136450719} , # Bidhannagar
+    "station_1": {"lat": 23.564018931392827, "lon": 87.31123928017463}, # chandidas
+    "station_2": {"lat": 23.5391718044899, "lon": 87.30401858752859}, #city center
+    "station_3": {"lat": 23.554806202241476, "lon": 87.24681601086061}, # DSP side (Industrial)
 }
 
 def find_nearest_station(lat, lon):

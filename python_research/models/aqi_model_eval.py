@@ -55,7 +55,6 @@ ttm_config = TinyTimeMixerConfig(
     d_model=48, patch_size=4, num_time_features=0)
 model_ttm = TinyTimeMixerForPrediction(ttm_config)
 model_ttm.load_state_dict(torch.load("durgapur_ttm_model.pt", map_location="cpu"))
-model_ttm.eval()
 model_ttm.to("cpu")
 ttm_scaler_x = joblib.load(ttm_scaler_path_x)
 ttm_scaler_y = joblib.load(ttm_scaler_path_y)
@@ -334,58 +333,61 @@ def run_lstm_model(lat, lon, station_index):
 # =====================================================
 
 def run_ttm_model(lat, lon):
-
     history = fetch_combined_history(lat, lon)
-
     if len(history) < 24:
-        print("Not enough history for TTM")
         return []
 
-    # 1️⃣ Get 16 base features (for LSTM)
-    X_base = build_feature_matrix(history)   # (24, 16)
+    # 1. THIS ORDER MUST MATCH build_feature_matrix EXACTLY
+    cols_base = [
+        "pm2_5", "pm10", "no2", "co", "so2", "o3", "temp_c", "wind", "humidity", 
+             "hour_sin", "hour_cos", "date_sin", "date_cos", "month_sin", "month_cos", "year"
+    ]
+    
+    # 2. Build the matrix and DataFrame
+    X_base = build_feature_matrix(history) 
+    ttm_df = pd.DataFrame(X_base, columns=cols_base)
+    
+    # 3. Add uppercase AQI (to fix the case-sensitive scaler error)
+    ttm_df["AQI"] = [row["aqi"] for row in history]
 
-    # 2️⃣ Extract AQI history separately (last 24 rows)
-    aqi_history = np.array([row["aqi"] for row in history[-24:]])
-    aqi_history = aqi_history.reshape(-1, 1)  # (24, 1)
+    # 4. Scale (Standardizing features)
+    ttm_df[cols_base] = ttm_scaler_x.transform(ttm_df[cols_base])
+    ttm_df[["AQI"]] = ttm_scaler_y.transform(ttm_df[["AQI"]])
 
-    # 3️⃣ Scale separately (same as training)
-    X_base_scaled = ttm_scaler_x.transform(X_base)
-    aqi_scaled = ttm_scaler_y.transform(aqi_history)
+    # 5. Prepare Tensor (Channel order: 16 features + 1 AQI = 17 channels)
+    X_values = ttm_df[cols_base + ["AQI"]].values
+    X_tensor = torch.tensor(X_values, dtype=torch.float32).unsqueeze(0).to("cpu")
 
-    # 4️⃣ Combine → (24, 17)
-    X_full = np.hstack([X_base_scaled, aqi_scaled])
-
-    # 5️⃣ Safety check
-    expected_channels = model_ttm.config.num_input_channels
-    if X_full.shape[1] != expected_channels:
-        raise ValueError(
-            f"Feature mismatch: model expects {expected_channels}, "
-            f"but got {X_full.shape[1]}"
-        )
-
-    # 6️⃣ Convert to tensor
-    X_tensor = torch.tensor(X_full, dtype=torch.float32).unsqueeze(0).to("cpu")
-
+    # 6. Run Prediction
     model_ttm.eval()
-
     with torch.no_grad():
-        ttm_out = model_ttm(past_values=X_tensor).prediction_outputs
-        ttm_scaled = ttm_out[0, :, 0].cpu().numpy().reshape(-1, 1)
-        pred = ttm_scaler_y.inverse_transform(ttm_scaled).flatten()
+        output_obj = model_ttm(past_values=X_tensor)
+        # output shape is [1, 12, 17] -> [Batch, Prediction_Horizon, Channels]
+        ttm_out = output_obj.prediction_outputs.cpu().numpy()
         
-    # 8️⃣ Format output timestamps
+        # 🔹 CRITICAL CHANGE: 
+        # If your AQI was the LAST column in your training data, change [0, :, 0] to [0, :, -1]
+        # Most TTM setups predict all channels; we want the one corresponding to AQI.
+        raw_preds = ttm_out[0, :, -1].reshape(-1, 1) 
+
+        # Create a temporary DataFrame with the EXACT column name "AQI" 
+        # so the scaler knows which mean/std to use.
+        pred_df = pd.DataFrame(raw_preds, columns=["AQI"])
+        
+        # Now inverse transform
+        final_aqi = ttm_scaler_y.inverse_transform(pred_df).flatten()
+
+    # 7. Format output
     now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
     ist_offset = timezone(timedelta(hours=5, minutes=30))
 
     output = []
-
-    for i, val in enumerate(pred, start=1):
+    for i, val in enumerate(final_aqi, start=1):
         future_time = now + timedelta(hours=i)
         ist_time = future_time.astimezone(ist_offset)
-
         output.append({
             "datetime_ist": ist_time.strftime("%Y-%m-%d %H:%M:%S"),
-            "aqi": float(val)
+            "aqi": float(val) # Removed the max(0.0) clip to see what the raw value is
         })
 
     return output

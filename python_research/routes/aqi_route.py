@@ -3,7 +3,7 @@ import logging
 import os
 from fastapi import APIRouter, HTTPException
 from python_research.schemas.schema import JavaRouteRequest, ForecastRequest, ForecastResponse, RouteRequest
-from python_research.services.aqi_engine import fetch_google_aqi_profile, get_aqi_info, get_multi_station_forecast, haversine, interpolate_pollutants, fetch_google_weather_history, fetch_google_aqi_history, weighted_average
+from python_research.services.aqi_engine import fetch_google_aqi_profile, get_cyclical_features, get_aqi_info, get_multi_station_forecast, haversine, interpolate_pollutants, fetch_google_weather_history, fetch_google_aqi_history, weighted_average
 import numpy as np
 from datetime import datetime, timedelta
 import httpx
@@ -14,10 +14,10 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
 # Fixed Station Coordinates
 STATIONS = {
-    "station_0": {"lat": 23.51905342888936, "lon": 87.34565136450719},
-    "station_1": {"lat": 23.564018931392827, "lon": 87.31123928017463},
-    "station_2": {"lat": 23.5391718044899, "lon": 87.30401858752859},
-    "station_3": {"lat": 23.554806202241476, "lon": 87.24681601086061},
+    "station_0": {"lat": 23.51905342888936, "lon": 87.34565136450719} , # Bidhannagar
+    "station_1": {"lat": 23.564018931392827, "lon": 87.31123928017463}, # chandidas
+    "station_2": {"lat": 23.5391718044899, "lon": 87.30401858752859}, #city center
+    "station_3": {"lat": 23.554806202241476, "lon": 87.24681601086061}, # DSP side (Industrial)
 }
 
 def find_nearest_station(lat, lon):
@@ -96,9 +96,11 @@ async def history_data_all():
 
                 for w, a in zip(weather_res.get("history", []),
                                 aqi_res.get("history", [])):
+                    time_str = a.get("time")
+                    cyclical = get_cyclical_features(time_str)
 
                     combined_history.append({
-                        "time": a.get("time"),
+                        "time": time_str,
                         "pm2_5": a.get("pm25", 0),
                         "pm10": a.get("pm10", 0),
                         "no2": a.get("no2", 0),
@@ -107,7 +109,8 @@ async def history_data_all():
                         "o3": a.get("o3", 0),
                         "temp_c": w.get("temp_c", 0),
                         "wind": w.get("wind", 0),
-                        "humidity": w.get("humidity", 0)
+                        "humidity": w.get("humidity", 0),
+                        **cyclical
                     })
 
                 return station_id, {
@@ -167,12 +170,20 @@ async def predict_all_stations(data: RouteRequest):
             w_hist, a_hist = weather_res.get("history", []), aqi_res.get("history", [])
 
             for w, a in zip(w_hist, a_hist):
+                time_str = a.get("time")
+                cyc = get_cyclical_features(time_str) # <--- Break timestamp
+
                 combined_history.append({
                     "pm2_5": a.get("pm25", 0), "pm10": a.get("pm10", 0),
                     "no2": a.get("no2", 0), "co": a.get("co", 0),
                     "so2": a.get("so2", 0), "o3": a.get("o3", 0),
                     "temp_c": w.get("temp_c", 0), "wind": w.get("wind", 0),
-                    "humidity": w.get("humidity", 0)
+                    "humidity": w.get("humidity", 0),
+                    # Extra 7 features for LSTM
+                    "hour_sin": cyc["hour_sin"], "hour_cos": cyc["hour_cos"],
+                    "date_sin": cyc["date_sin"], "date_cos": cyc["date_cos"],
+                    "month_sin": cyc["month_sin"], "month_cos": cyc["month_cos"],
+                    "year": cyc["year"]
                 })
 
             if len(combined_history) < 24:

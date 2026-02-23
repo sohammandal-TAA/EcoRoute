@@ -3,6 +3,7 @@ import numpy as np
 import os
 import requests
 from pykrige.ok import OrdinaryKriging
+from requests_cache import datetime, timedelta
 import tensorflow as tf
 import joblib
 import httpx
@@ -208,49 +209,47 @@ async def fetch_google_aqi_history(lat, lon, http_client, api_key=None):
         print(f"⚠️ AQI History Fetch Failed for ({lat}, {lon}): {e}", flush=True)
         return {"lat": lat, "lon": lon, "error": str(e)}
     
-def get_multi_station_forecast(combined_history_list):
-    """
-    Input: 24 combined history dicts
-    Output: Predictions for 4 stations (single forward pass)
-    """
 
-    # 1️⃣ Feature Alignment (Vectorized)
-    feature_matrix = np.array([
-        [
-            h.get("pm2_5", 0), h.get("pm10", 0), h.get("no2", 0),
-            h.get("co", 0), h.get("so2", 0), h.get("o3", 0),
-            h.get("temp_c", 0), h.get("wind", 0), h.get("humidity", 0),
-            0, 0, 0, 0, 0, 0, 0
-        ]
-        for h in combined_history_list
-    ], dtype=float)
+def get_multi_station_forecast(combined_history_list, active_stations=[0, 1, 2, 3]):
+    # 1️⃣ Define EXACT feature order (as per your training columns)
+    feature_cols = [
+        "pm2_5", "pm10", "no2", "co", "so2", "o3", 
+        "temp_c", "wind", "humidity", 
+        "hour_sin", "hour_cos", "date_sin", "date_cos", 
+        "month_sin", "month_cos", "year"
+    ]
 
-    # 2️⃣ Scale once
+    # 2️⃣ Feature Extraction with Time-Aware Logic (No more manual 0s)
+    processed_features = []
+    for h in combined_history_list:
+        # Agar h mein cyclical data nahi hai, toh current time se nikaal lo
+        row = [h.get(col, 0) for col in feature_cols[:9]] # First 9 (AQI features)
+        
+        # Baki 7 features (sin/cos/year) manually padding ki jagah actual lo:
+        # h.get use karo agar history mein hai, varna default logic
+        row.extend([
+            h.get("hour_sin", 0), h.get("hour_cos", 0),
+            h.get("date_sin", 0), h.get("date_cos", 0),
+            h.get("month_sin", 0), h.get("month_cos", 0),
+            h.get("year", 0) # Current Year
+        ])
+        processed_features.append(row)
+
+    feature_matrix = np.array(processed_features, dtype=float)
+
+    # 3️⃣ Scale & Reshape
     scaled_matrix = loaded_scaler.transform(feature_matrix)
+    lstm_input = scaled_matrix.reshape(1, 24, 16) # 16 features total
 
-    # 3️⃣ Reshape for LSTM
-    lstm_input = scaled_matrix.reshape(1, 24, 16)
+    # 4️⃣ Batch station IDs
+    station_ids = np.array([[sid] for sid in active_stations])
+    lstm_batch = np.repeat(lstm_input, len(active_stations), axis=0)
 
-    # 4️⃣ Batch station IDs (VERY IMPORTANT)
-    station_ids = np.array([[0], [1], [2], [3]])  # shape (4,1)
-
-    # Repeat input 4 times (batch size = 4)
-    lstm_batch = np.repeat(lstm_input, 4, axis=0)
-
-    # 5️⃣ Single Forward Pass
+    # 5️⃣ Forward Pass
     raw_pred = lstm_model.predict([lstm_batch, station_ids], verbose=0)
 
-    # raw_pred shape: (4, forecast_steps)
-
-    all_results = {}
-
-    for i in range(4):
-        all_results[f"station_{i}"] = [
-            round(float(p), 2) for p in raw_pred[i]
-        ]
-
-    return all_results
-
+    return {f"station_{sid}": [round(float(p), 2) for p in raw_pred[i]] 
+            for i, sid in enumerate(active_stations)}
 
 def get_aqi_info(aqi):
     """
@@ -299,3 +298,27 @@ def weighted_average(aqiA, aqiB, lat, lon,
     wB = 1 / dB
 
     return (aqiA * wA + aqiB * wB) / (wA + wB)
+
+import math
+
+def get_cyclical_features(time_str):
+    # Time format: "2024-05-20T14:00:00Z"
+    dt = datetime.fromisoformat(time_str.replace("Z", "+00:00"))
+    # IST Adjustment (Agar Google UTC de raha hai)
+    dt_ist = dt + timedelta(hours=5, minutes=30)
+    
+    hour = dt_ist.hour
+    day = dt_ist.day
+    month = dt_ist.month
+    year = dt_ist.year
+
+    # Math calculations for Sin/Cos
+    return {
+        "hour_sin": math.sin(2 * math.pi * hour / 24),
+        "hour_cos": math.cos(2 * math.pi * hour / 24),
+        "date_sin": math.sin(2 * math.pi * day / 31),
+        "date_cos": math.cos(2 * math.pi * day / 31),
+        "month_sin": math.sin(2 * math.pi * month / 12),
+        "month_cos": math.cos(2 * math.pi * month / 12),
+        "year": year
+    }

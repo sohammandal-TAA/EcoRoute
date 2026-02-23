@@ -4,6 +4,11 @@ root_path = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(root_path))
 
 import os
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["TF_NUM_INTRAOP_THREADS"] = "1"
+os.environ["TF_NUM_INTEROP_THREADS"] = "1"
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 import requests
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -12,7 +17,12 @@ from dotenv import load_dotenv
 import joblib
 import numpy as np
 from tensorflow import keras
+import tensorflow as tf
+tf.config.set_visible_devices([], 'GPU')
+tf.config.threading.set_intra_op_parallelism_threads(1)
+tf.config.threading.set_inter_op_parallelism_threads(1)
 import torch
+torch.set_num_threads(1)
 from tsfm_public.models.tinytimemixer import TinyTimeMixerForPrediction, TinyTimeMixerConfig
 
 # =====================================================
@@ -46,6 +56,7 @@ ttm_config = TinyTimeMixerConfig(
 model_ttm = TinyTimeMixerForPrediction(ttm_config)
 model_ttm.load_state_dict(torch.load("durgapur_ttm_model.pt", map_location="cpu"))
 model_ttm.eval()
+model_ttm.to("cpu")
 ttm_scaler_x = joblib.load(ttm_scaler_path_x)
 ttm_scaler_y = joblib.load(ttm_scaler_path_y)
 
@@ -294,13 +305,13 @@ def run_lstm_model(lat, lon, station_index):
 
 
     X_scaled = lstm_scaler.transform(X).reshape(1, 24, 16)
-    meta_input = np.zeros((1,1), dtype=float)  
+    X_scaled = X_scaled.reshape(1, 24, 16)  
     station_input = np.array([[station_index]], dtype=np.int32)
-    pred_scaled = lstm_model.predict(
-        [X_scaled, station_input],
-        verbose=1
-    )
-    predictions = pred_scaled.flatten()
+    print("Final X shape:", X_scaled.shape)
+    print("Station input shape:", station_input.shape)
+    pred_scaled = lstm_model([X_scaled, station_input], training=False)
+    pred_scaled = pred_scaled.numpy()  
+    predictions = pred_scaled.flatten() 
 
     # Build output
     now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
@@ -334,7 +345,7 @@ def run_ttm_model(lat, lon):
     X_base = build_feature_matrix(history)   # (24, 16)
 
     # 2️⃣ Extract AQI history separately (last 24 rows)
-    aqi_history = np.array([row["AQI"] for row in history[-24:]])
+    aqi_history = np.array([row["aqi"] for row in history[-24:]])
     aqi_history = aqi_history.reshape(-1, 1)  # (24, 1)
 
     # 3️⃣ Scale separately (same as training)
@@ -358,15 +369,10 @@ def run_ttm_model(lat, lon):
     model_ttm.eval()
 
     with torch.no_grad():
-        output_obj = model_ttm(past_values=X_tensor)
-        pred_scaled = output_obj.prediction_outputs[:, :, 0]
-        pred_scaled = pred_scaled.cpu().numpy()
-
-    # 7️⃣ Inverse scale
-    pred = ttm_scaler_y.inverse_transform(
-        pred_scaled.reshape(-1, 1)
-    ).flatten()
-
+        ttm_out = model_ttm(past_values=X_tensor).prediction_outputs
+        ttm_scaled = ttm_out[0, :, 0].cpu().numpy().reshape(-1, 1)
+        pred = ttm_scaler_y.inverse_transform(ttm_scaled).flatten()
+        
     # 8️⃣ Format output timestamps
     now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
     ist_offset = timezone(timedelta(hours=5, minutes=30))

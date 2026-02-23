@@ -20,15 +20,14 @@ import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.maps.DirectionsApi;
 import com.google.maps.GeoApiContext;
 import com.google.maps.errors.ApiException;
 import com.google.maps.model.DirectionsResult;
 import com.google.maps.model.DirectionsRoute;
 import com.google.maps.model.LatLng;
-import com.fasterxml.jackson.databind.ObjectMapper;
 
-import ai.theaware.stealth.dto.DirectionsResponse;
 import ai.theaware.stealth.dto.RouteResponseDTO;
 import ai.theaware.stealth.entity.Route;
 import ai.theaware.stealth.entity.Users;
@@ -123,7 +122,7 @@ public class GoogleRoutingService {
             }
 
             checkAndSaveHistory(sLat, sLon, dLat, dLon, user, result.routes[0]);
-            predictionService.triggerPrediction(user.getEmail(), sLat, sLon, dLat, dLon);
+            predictionService.triggerPrediction(user.getEmail(), sLat, sLon, dLat, dLon, routesDto.getRoutes());
 
             return aiResponse;
 

@@ -1,23 +1,18 @@
 package ai.theaware.stealth.controller;
 
-import java.util.Map;
-
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.oauth2.core.user.OAuth2User;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
-
+import ai.theaware.stealth.dto.PredictionResponseDTO;
 import ai.theaware.stealth.dto.RouteRequestDTO;
 import ai.theaware.stealth.dto.RouteResponseDTO;
 import ai.theaware.stealth.entity.Users;
 import ai.theaware.stealth.service.GoogleRoutingService;
 import ai.theaware.stealth.service.PredictionService;
 import ai.theaware.stealth.service.UserService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.core.user.OAuth2User;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/routes")
@@ -69,15 +64,22 @@ public class RouteController {
     }
 
     @GetMapping("/predict")
-    public ResponseEntity<?> getPrediction(
+    public ResponseEntity<PredictionResponseDTO> getPrediction(
             @AuthenticationPrincipal OAuth2User principal) {
 
         if (principal == null) {
-            return ResponseEntity.status(401).body(Map.of("error", "User not authenticated"));
+            PredictionResponseDTO err = new PredictionResponseDTO();
+            err.setStatus("error");
+            return ResponseEntity.status(401).body(err);
         }
 
         String email = principal.getAttribute("email");
-        Object result = predictionService.getPrediction(email);
+        PredictionResponseDTO result = predictionService.getPrediction(email);
+
+        if ("pending".equals(result.getStatus())) {
+            return ResponseEntity.accepted().body(result);   // 202 – still processing
+        }
+
         return ResponseEntity.ok(result);
     }
 

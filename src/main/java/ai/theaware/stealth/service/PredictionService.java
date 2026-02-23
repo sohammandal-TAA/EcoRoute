@@ -1,17 +1,20 @@
 package ai.theaware.stealth.service;
 
-import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutionException;
-
+import ai.theaware.stealth.dto.PredictionResponseDTO;
+import ai.theaware.stealth.dto.RouteResponseDTO;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
-import lombok.extern.slf4j.Slf4j;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 
 @Service
 @Slf4j
@@ -21,15 +24,19 @@ public class PredictionService {
     private String predictUrl;
 
     private final RestTemplate restTemplate;
-    private final ConcurrentHashMap<String, CompletableFuture<Object>> pendingPredictions = new ConcurrentHashMap<>();
+    private final ObjectMapper objectMapper;
+    private final ConcurrentHashMap<String, CompletableFuture<PredictionResponseDTO>> pendingPredictions =
+            new ConcurrentHashMap<>();
 
     public PredictionService(RestTemplate restTemplate) {
         this.restTemplate = restTemplate;
+        this.objectMapper = new ObjectMapper();
     }
 
     @Async
-    public void triggerPrediction(String userEmail, Double sLat, Double sLon, Double dLat, Double dLon) {
-        CompletableFuture<Object> future = new CompletableFuture<>();
+    public void triggerPrediction(String userEmail, Double sLat, Double sLon, Double dLat, Double dLon,
+                                  List<RouteResponseDTO.RouteDetail> routes) {
+        CompletableFuture<PredictionResponseDTO> future = new CompletableFuture<>();
         pendingPredictions.put(userEmail, future);
 
         try {
@@ -37,37 +44,45 @@ public class PredictionService {
                     "sLat", sLat,
                     "sLon", sLon,
                     "dLat", dLat,
-                    "dLon", dLon
-        );
+                    "dLon", dLon,
+                    "routes", routes   // Python RouteRequest requires this field
+            );
 
             log.info("Triggering AI Prediction at: {}", predictUrl);
-            Object result = restTemplate.postForObject(predictUrl, payload, Object.class);
 
-            future.complete(result);
+            Object raw = restTemplate.postForObject(predictUrl, payload, Object.class);
+            PredictionResponseDTO dto = objectMapper.convertValue(raw, PredictionResponseDTO.class);
+
+            future.complete(dto);
         } catch (RestClientException e) {
             future.completeExceptionally(e);
             log.error("Prediction error: {}", e.getMessage());
         }
     }
 
-    public Object getPrediction(String userEmail) {
-        CompletableFuture<Object> future = pendingPredictions.get(userEmail);
+    public PredictionResponseDTO getPrediction(String userEmail) {
+        CompletableFuture<PredictionResponseDTO> future = pendingPredictions.get(userEmail);
 
         if (future == null) {
-            return Map.of("error", "No prediction found. Please call /process first.");
+            PredictionResponseDTO err = new PredictionResponseDTO();
+            err.setStatus("error");
+            return err;
         }
 
         try {
-            Object result = future.get(30, java.util.concurrent.TimeUnit.SECONDS);
+            PredictionResponseDTO result = future.get(30, java.util.concurrent.TimeUnit.SECONDS);
             pendingPredictions.remove(userEmail);
             return result;
-
         } catch (java.util.concurrent.TimeoutException e) {
-            return Map.of("error", "Prediction still processing, try again in a moment.");
+            PredictionResponseDTO pending = new PredictionResponseDTO();
+            pending.setStatus("pending");
+            return pending;
         } catch (InterruptedException | ExecutionException e) {
             pendingPredictions.remove(userEmail);
             log.error("Prediction failed for {}: {}", userEmail, e.getMessage());
-            return Map.of("error", "Prediction failed: " + e.getMessage());
+            PredictionResponseDTO err = new PredictionResponseDTO();
+            err.setStatus("error");
+            return err;
         }
     }
 }

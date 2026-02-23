@@ -4,7 +4,7 @@ import Topbar from '../components/dashboard/Topbar';
 import NavigationMap from '../components/dashboard/NavigationMap';
 import AlternativeRoutes from '../components/dashboard/AlternativeRoutes';
 import AirQualityCard from '../components/dashboard/AirQualityCard';
-import ForecastChart from '../components/dashboard/ForecastChart';
+import { ForecastChartInteractive } from '../components/dashboard/ForecastChart';
 import SensorReadings from '../components/dashboard/SensorReadings';
 import EcoProCard from '../components/dashboard/EcoProCard';
 import type { ForecastBar, RouteOption, SensorData } from '../components/dashboard/dashboardData';
@@ -240,7 +240,7 @@ const Dashboard: React.FC = () => {
           />
           <div className="dashboard-right-col">
             <AirQualityCard isDarkMode={isDarkMode} data={airQuality} />
-            <ForecastChart isDarkMode={isDarkMode} data={forecast} />
+            <ForecastChartInteractive isDarkMode={isDarkMode} />
           </div>
         </div>
 

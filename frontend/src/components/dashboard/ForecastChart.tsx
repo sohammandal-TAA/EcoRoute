@@ -62,60 +62,16 @@ const ForecastChart: React.FC<ForecastChartProps> = ({ data }) => {
 // ...existing code...
 
 // Interactive forecast chart for multiple routes
-import { useEffect, useState } from 'react';
 
-interface PredictResponse {
-  route_forecasts: {
-    [route: string]: {
-      forecast: Array<{
-        time: string;
-        aqi: number;
-        health_info: {
-          category: string;
-          color: string;
-        };
-      }>;
-    };
-  };
+// Interactive forecast chart for multiple routes (controlled by parent)
+interface ForecastChartInteractiveProps {
+  isDarkMode: boolean;
+  forecastData?: Array<{ time: string; value: number; level: 'low' | 'medium' | 'high'; color: string }>;
+  loading?: boolean;
+  error?: string | null;
 }
 
-const ForecastChartInteractive: React.FC<{ isDarkMode: boolean }> = ({ isDarkMode }) => {
-  const [routes, setRoutes] = useState<string[]>([]);
-  const [selectedRoute, setSelectedRoute] = useState<string>('');
-  const [routeForecasts, setRouteForecasts] = useState<PredictResponse['route_forecasts']>({});
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    setLoading(true);
-    fetch('/api/routes/predict')
-      .then((res) => res.json())
-      .then((data: PredictResponse) => {
-        const routeNames = Object.keys(data.route_forecasts);
-        setRoutes(routeNames);
-        setRouteForecasts(data.route_forecasts);
-        setSelectedRoute(routeNames[0] || '');
-        setLoading(false);
-      })
-      .catch(() => {
-        setError('Failed to load forecasts');
-        setLoading(false);
-      });
-  }, []);
-
-  const forecastData: Array<{ time: string; value: number; level: 'low' | 'medium' | 'high'; color: string }> =
-    selectedRoute && routeForecasts[selectedRoute]?.forecast
-      ? routeForecasts[selectedRoute].forecast.map(f => ({
-        time: f.time,
-        value: f.aqi,
-        level: (f.health_info.category === 'Satisfactory'
-          ? 'low'
-          : f.health_info.category === 'Moderate'
-            ? 'medium'
-            : 'high') as 'low' | 'medium' | 'high',
-        color: f.health_info.color,
-      }))
-      : [];
+const ForecastChartInteractive: React.FC<ForecastChartInteractiveProps> = ({ isDarkMode, forecastData = [], loading = false, error = null }) => {
 
   return (
     <section className="dashboard-card forecast-card">
@@ -134,18 +90,7 @@ const ForecastChartInteractive: React.FC<{ isDarkMode: boolean }> = ({ isDarkMod
           </button>
         </div>
       </header>
-      <div style={{ marginBottom: 16 }}>
-        {routes.map(route => (
-          <button
-            key={route}
-            className={`route-select-btn${selectedRoute === route ? ' active' : ''}`}
-            style={{ marginRight: 8, padding: '4px 12px', borderRadius: 6, border: '1px solid #ccc', background: selectedRoute === route ? '#e0e0e0' : '#fff', fontWeight: selectedRoute === route ? 'bold' : 'normal' }}
-            onClick={() => setSelectedRoute(route)}
-          >
-            {route.replace(/_/g, ' ')}
-          </button>
-        ))}
-      </div>
+      {/* Route selection is now controlled by parent; no buttons here. */}
       {loading ? (
         <div>Loading...</div>
       ) : error ? (

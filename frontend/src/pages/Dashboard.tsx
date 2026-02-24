@@ -10,6 +10,11 @@ import EcoProCard from '../components/dashboard/EcoProCard';
 import type { ForecastBar, RouteOption, SensorData } from '../components/dashboard/dashboardData';
 import '../styles/dashboard.css';
 
+
+/**
+ * Dashboard main component for EcoRoute.ai
+ * Handles route search, backend sync, and dashboard widget state.
+ */
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -24,12 +29,14 @@ const Dashboard: React.FC = () => {
     kgSaved?: number | null;
     goalPercent?: number | null;
   } | null>(null);
-  // Store PM2.5, PM10, CO for each route from /api/routes/process
   const [routeSensorData, setRouteSensorData] = useState<any[]>([]);
-  // Store AQI marker data for all routes
   const [aqiMarkers, setAqiMarkers] = useState<{ location: [number, number]; aqi: number }[]>([]);
-  const [forecast, setForecast] = useState<ForecastBar[] | null>(null);
+  const [allRouteForecasts, setAllRouteForecasts] = useState<any>({});
 
+
+  /**
+   * Loads user name from localStorage on mount.
+   */
   useEffect(() => {
     const storedName = window.localStorage.getItem('userName');
     if (storedName?.trim()) {
@@ -41,7 +48,12 @@ const Dashboard: React.FC = () => {
   // This triggers every time the origin (user moving) OR destination (user searching) changes
   // const fetchEcoData = useCallback(async (origin: google.maps.LatLngLiteral, dest: google.maps.LatLngLiteral) => { ... }, []);
 
-  // --- FOR MARKERS: Fetch from /api/routes/raw and mark each coordinate as a marker ---
+
+  /**
+   * Fetches route geometry and pollution data, then triggers forecast fetch.
+   * @param origin - Origin coordinates
+   * @param dest - Destination coordinates
+   */
   const fetchRawRouteMarkers = useCallback(async (origin: google.maps.LatLngLiteral, dest: google.maps.LatLngLiteral) => {
     try {
       const params = new URLSearchParams({
@@ -50,16 +62,13 @@ const Dashboard: React.FC = () => {
         dLat: dest.lat.toString(),
         dLon: dest.lng.toString(),
       });
-      // 1. Fetch route coordinates for display
+      // Fetch route coordinates for display
       const response = await fetch(`http://localhost:8080/api/routes/raw?${params.toString()}`, {
         method: 'GET',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
       });
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(`Backend error: ${response.status} - ${JSON.stringify(errorData)}`);
-      }
+      if (!response.ok) throw new Error('Failed to fetch route geometry');
       const data = await response.json();
       let backendRoutes: any[] = [];
       if (Array.isArray(data.routes)) {
@@ -76,7 +85,7 @@ const Dashboard: React.FC = () => {
       }
       setRoutes(backendRoutes);
 
-      // 2. Fetch route process data for PM2.5, PM10, CO and AQI markers
+      // Fetch pollution/process data
       const processResp = await fetch('http://localhost:8080/api/routes/process', {
         method: 'POST',
         credentials: 'include',
@@ -91,11 +100,8 @@ const Dashboard: React.FC = () => {
       if (processResp.ok) {
         const processData = await processResp.json();
         if (processData.route_analysis && typeof processData.route_analysis === 'object') {
-          // PM/CO summary for other widgets
-          // Store the full route_analysis entry for each route (including details)
           const sensorsArr = Object.keys(processData.route_analysis).map((key) => processData.route_analysis[key]);
           setRouteSensorData(sensorsArr);
-          // Extract AQI/location pairs from details arrays for all routes
           const allMarkers: { location: [number, number]; aqi: number }[] = [];
           Object.values(processData.route_analysis).forEach((route: any) => {
             if (Array.isArray(route.details)) {
@@ -111,9 +117,22 @@ const Dashboard: React.FC = () => {
           setRouteSensorData([]);
           setAqiMarkers([]);
         }
+        // Fetch forecast after process
+        try {
+          const predictResp = await fetch('/api/routes/predict', { credentials: 'include' });
+          if (predictResp.ok) {
+            const predictData = await predictResp.json();
+            setAllRouteForecasts(predictData.route_forecasts || {});
+          } else {
+            setAllRouteForecasts({});
+          }
+        } catch (e) {
+          setAllRouteForecasts({});
+        }
       } else {
         setRouteSensorData([]);
         setAqiMarkers([]);
+        setAllRouteForecasts({});
       }
     } catch (error) {
       console.error('Error fetching raw route/process data:', error);
@@ -121,41 +140,48 @@ const Dashboard: React.FC = () => {
     }
   }, []);
 
-  // Effect to watch for coordinate changes and trigger the backend
+
+  /**
+   * Triggers backend sync when origin or destination changes.
+   */
   useEffect(() => {
     if (!originCoords || !destinationCoords) return;
-
     const timeout = setTimeout(() => {
       fetchRawRouteMarkers(originCoords, destinationCoords);
     }, 800); // throttle backend calls
-
     return () => clearTimeout(timeout);
   }, [originCoords, destinationCoords, fetchRawRouteMarkers]);
 
-  // 🔥 Handle logo click to redirect to landing page
+
+  /**
+   * Handles logo click to redirect to landing page.
+   */
   const handleLogoClick = useCallback(() => {
     navigate('/');
   }, [navigate]);
 
+
+  /**
+   * Handles destination search and sets destination coordinates.
+   * @param placeIdOrQuery - Place ID or address string
+   * @param description - Optional description
+   */
   const handleSearchDestination = useCallback(async (
     placeIdOrQuery: string,
     description?: string
   ) => {
     if (!window.google?.maps) return;
 
-    // 🔥 Clear old data when new search begins
+    // Clear old data when new search begins
     setRoutes([]);
     setAirQuality(null);
-    // setSensors(null); // removed, not needed
-    setForecast(null);
     setRouteInfo(null);
 
-    // 🔥 If it looks like a place_id, use PlacesService
+    // If it looks like a place_id, use PlacesService
     if (placeIdOrQuery.startsWith("ChIJ") && window.google.maps.places) {
       const service = new window.google.maps.places.PlacesService(
         document.createElement("div")
       );
-
       service.getDetails(
         { placeId: placeIdOrQuery },
         (place, status) => {
@@ -164,7 +190,6 @@ const Dashboard: React.FC = () => {
             place?.geometry?.location
           ) {
             const loc = place.geometry.location;
-
             setDestinationCoords({
               lat: loc.lat(),
               lng: loc.lng(),
@@ -174,17 +199,14 @@ const Dashboard: React.FC = () => {
           }
         }
       );
-
       return;
     }
 
-    // 🔥 Otherwise fallback to normal address search
+    // Otherwise fallback to normal address search
     const geocoder = new window.google.maps.Geocoder();
-
     geocoder.geocode({ address: placeIdOrQuery }, (results, status) => {
       if (status === "OK" && results?.[0]?.geometry?.location) {
         const loc = results[0].geometry.location;
-
         setDestinationCoords({
           lat: loc.lat(),
           lng: loc.lng(),
@@ -240,7 +262,32 @@ const Dashboard: React.FC = () => {
           />
           <div className="dashboard-right-col">
             <AirQualityCard isDarkMode={isDarkMode} data={airQuality} />
-            <ForecastChartInteractive isDarkMode={isDarkMode} />
+            <ForecastChartInteractive
+              isDarkMode={isDarkMode}
+              forecastData={(() => {
+                if (
+                  selectedRoute != null &&
+                  Array.isArray(routes) &&
+                  routes[selectedRoute] &&
+                  allRouteForecasts &&
+                  allRouteForecasts[routes[selectedRoute].name] &&
+                  Array.isArray(allRouteForecasts[routes[selectedRoute].name].forecast)
+                ) {
+                  return allRouteForecasts[routes[selectedRoute].name].forecast.map((f: any) => ({
+                    time: f.time,
+                    value: f.aqi,
+                    level:
+                      f.health_info.category === 'Satisfactory'
+                        ? 'low'
+                        : f.health_info.category === 'Moderate'
+                          ? 'medium'
+                          : 'high',
+                    color: f.health_info.color,
+                  }));
+                }
+                return [];
+              })()}
+            />
           </div>
         </div>
 

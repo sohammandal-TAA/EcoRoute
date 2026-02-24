@@ -113,6 +113,8 @@ public class GoogleRoutingService {
             );
             logJsonPayload(aiRequest);
 
+            predictionService.triggerPrediction(user.getEmail(), sLat, sLon, dLat, dLon, routesDto.getRoutes());
+
             Object aiResponse;
             try {
                 aiResponse = restTemplate.postForObject(aiAnalyzeUrl, aiRequest, Object.class);
@@ -122,7 +124,6 @@ public class GoogleRoutingService {
             }
 
             checkAndSaveHistory(sLat, sLon, dLat, dLon, user, result.routes[0]);
-            predictionService.triggerPrediction(user.getEmail(), sLat, sLon, dLat, dLon, routesDto.getRoutes());
 
             return aiResponse;
 

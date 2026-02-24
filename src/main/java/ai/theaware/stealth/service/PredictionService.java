@@ -25,6 +25,8 @@ public class PredictionService {
     @Value("${app.ai.predict-url}")
     private String predictUrl;
 
+    private final ConcurrentHashMap<String, PredictionResponseDTO> completedPredictions = new ConcurrentHashMap<>();
+
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
     private final ConcurrentHashMap<String, CompletableFuture<PredictionResponseDTO>> pendingPredictions =
@@ -39,6 +41,8 @@ public class PredictionService {
     public void triggerPrediction(String userEmail, Double sLat, Double sLon, Double dLat, Double dLon,
                                   List<RouteResponseDTO.RouteDetail> routes) {
         log.info("[PREDICT] triggerPrediction called for user: {}", userEmail);
+
+        completedPredictions.remove(userEmail);
 
         CompletableFuture<PredictionResponseDTO> future = new CompletableFuture<>();
         pendingPredictions.put(userEmail, future);
@@ -69,19 +73,23 @@ public class PredictionService {
         } catch (RestClientException e) {
             future.completeExceptionally(e);
             log.error("[PREDICT] HTTP error for user {}: {}", userEmail, e.getMessage());
-        } catch (Exception e) {
+        } catch (IllegalArgumentException e) {
             future.completeExceptionally(e);
             log.error("[PREDICT] Unexpected error for user {}: {}", userEmail, e.getMessage(), e);
         }
     }
 
     public PredictionResponseDTO getPrediction(String userEmail) {
-        log.info("[PREDICT] getPrediction called for user: {} | Pending keys: {}", userEmail, pendingPredictions.keySet());
+        PredictionResponseDTO cached = completedPredictions.get(userEmail);
+        if (cached != null) {
+            log.info("[PREDICT] Returning cached result for user: {}", userEmail);
+            return cached;
+        }
 
         CompletableFuture<PredictionResponseDTO> future = pendingPredictions.get(userEmail);
 
         if (future == null) {
-            log.warn("[PREDICT] No future found for user: {} — /process was not called first or already consumed", userEmail);
+            log.warn("[PREDICT] No future found for user: {}", userEmail);
             PredictionResponseDTO err = new PredictionResponseDTO();
             err.setStatus("error");
             return err;
@@ -93,18 +101,19 @@ public class PredictionService {
         try {
             PredictionResponseDTO result = future.get(30, java.util.concurrent.TimeUnit.SECONDS);
             pendingPredictions.remove(userEmail);
+            completedPredictions.put(userEmail, result);
             log.info("[PREDICT] Successfully retrieved prediction for user: {} | status={}", userEmail, result.getStatus());
             return result;
 
         } catch (java.util.concurrent.TimeoutException e) {
-            log.warn("[PREDICT] Timeout waiting for prediction for user: {}", userEmail);
+            log.warn("[PREDICT] Timeout for user: {}", userEmail);
             PredictionResponseDTO pending = new PredictionResponseDTO();
             pending.setStatus("pending");
             return pending;
 
         } catch (InterruptedException | ExecutionException e) {
             pendingPredictions.remove(userEmail);
-            log.error("[PREDICT] Execution error for user {}: {}", userEmail, e.getMessage(), e);
+            log.error("[PREDICT] Error for user {}: {}", userEmail, e.getMessage(), e);
             PredictionResponseDTO err = new PredictionResponseDTO();
             err.setStatus("error");
             return err;

@@ -1,3 +1,12 @@
+// AQI color coding based on value (same as forecast bar graph)
+const getAqiColor = (aqi: number): string => {
+  if (aqi <= 50) return '#007f2e'; // Deep Green - Good
+  if (aqi <= 100) return '#7ed957'; // Green Light - Satisfactory
+  if (aqi <= 200) return '#ffe600'; // Yellow - Moderate
+  if (aqi <= 300) return '#ff9900'; // Orange - Poor
+  if (aqi <= 400) return '#ff0000'; // Red - Very Poor
+  return '#7e0023'; // Maroon - Severe
+};
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   GoogleMap,
@@ -295,20 +304,22 @@ const NavigationMap: React.FC<NavigationMapProps> = ({
             <div
               style={{
                 background: 'rgba(255,255,255,0.98)',
-                border: '2px solid #1A73E8',
+                border: `2px solid ${getAqiColor(marker.aqi)}`,
                 borderRadius: '8px',
                 padding: '4px 8px',
                 fontWeight: 600,
                 color: '#1A1A1A',
                 fontSize: '13px',
-                boxShadow: '0 2px 8px rgba(26,115,232,0.10)',
+                boxShadow: `0 2px 8px ${getAqiColor(marker.aqi)}22`,
                 minWidth: '54px',
                 textAlign: 'center',
                 pointerEvents: 'auto',
                 lineHeight: 1.3,
               }}
             >
-              <div style={{ fontSize: '12px', fontWeight: 700, color: '#000000', marginBottom: 1 }}>AQI: <span style={{ color: '#1A73E8' }}>{marker.aqi}</span></div>
+              <div style={{ fontSize: '12px', fontWeight: 700, color: '#000000', marginBottom: 1 }}>
+                AQI: <span style={{ color: '#000000' }}>{marker.aqi}</span>
+              </div>
             </div>
           </OverlayView>
         ))}

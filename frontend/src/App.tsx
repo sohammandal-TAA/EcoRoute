@@ -51,21 +51,14 @@ const Landing: React.FC = () => {
 
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-2">
-                <a
-                  href="http://localhost:8080/oauth2/authorization/google"
-                  className="secondary-cta hidden px-4 py-2 text-xs sm:inline-flex"
-                  aria-label="Log in with Google"
-                >
-                  Log In
-                </a>
-                <a
-                  href="http://localhost:8080/oauth2/authorization/google"
-                  className="primary-cta px-4 py-2 text-xs"
-                  aria-label="Get started with Google"
-                >
-                  Get Started
-                </a>
-              </div>
+              <a
+                href="http://localhost:8080/oauth2/authorization/google"
+                className="secondary-cta hidden px-4 py-2 text-xs sm:inline-flex"
+                aria-label="Log in with Google"
+              >
+                Log In
+              </a>
+            </div>
           </div>
         </header>
 

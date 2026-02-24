@@ -25,9 +25,13 @@ const Hero: React.FC = () => {
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <button type="button" className="primary-cta w-full sm:w-auto">
-            Try EcoRoute Now
-          </button>
+          <a
+            href="http://localhost:8080/oauth2/authorization/google"
+            className="primary-cta w-full sm:w-auto"
+            aria-label="Get started with Google"
+          >
+            Get Started
+          </a>
         </div>
 
         <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted-text">

@@ -32,6 +32,7 @@ const Dashboard: React.FC = () => {
   const [routeSensorData, setRouteSensorData] = useState<any[]>([]);
   const [aqiMarkers, setAqiMarkers] = useState<{ location: [number, number]; aqi: number }[]>([]);
   const [allRouteForecasts, setAllRouteForecasts] = useState<any>({});
+  const [forecastLoading, setForecastLoading] = useState(false);
 
 
   /**
@@ -56,6 +57,8 @@ const Dashboard: React.FC = () => {
    */
   const fetchRawRouteMarkers = useCallback(async (origin: google.maps.LatLngLiteral, dest: google.maps.LatLngLiteral) => {
     try {
+      setForecastLoading(true); // Start loading forecast
+      setAllRouteForecasts({}); // Clear previous forecast
       const params = new URLSearchParams({
         sLat: origin.lat.toString(),
         sLon: origin.lng.toString(),
@@ -84,6 +87,8 @@ const Dashboard: React.FC = () => {
         }));
       }
       setRoutes(backendRoutes);
+      // Always deselect route after new destination so user must select
+      setSelectedRoute(null);
 
       // Fetch pollution/process data
       const processResp = await fetch('http://localhost:8080/api/routes/process', {
@@ -129,6 +134,7 @@ const Dashboard: React.FC = () => {
         } catch (e) {
           setAllRouteForecasts({});
         }
+        setForecastLoading(false); // Stop loading forecast
       } else {
         setRouteSensorData([]);
         setAqiMarkers([]);
@@ -237,9 +243,8 @@ const Dashboard: React.FC = () => {
         selectedRouteIndex={selectedRoute}
         onRouteSelect={setSelectedRoute}
         aqiMarkers={(() => {
-          if (selectedRoute == null) return [];
           // Only show AQI markers for the selected route
-          if (Array.isArray(routeSensorData) && routeSensorData[selectedRoute] && Array.isArray(routeSensorData[selectedRoute].details)) {
+          if (selectedRoute != null && Array.isArray(routeSensorData) && routeSensorData[selectedRoute] && Array.isArray(routeSensorData[selectedRoute].details)) {
             return routeSensorData[selectedRoute].details
               .filter((d: any) => Array.isArray(d.location) && typeof d.aqi === 'number')
               .map((d: any) => ({
@@ -247,6 +252,7 @@ const Dashboard: React.FC = () => {
                 aqi: d.aqi
               }));
           }
+          // If no route is selected, show no AQI markers
           return [];
         })()}
       />
@@ -264,6 +270,7 @@ const Dashboard: React.FC = () => {
             <AirQualityCard isDarkMode={isDarkMode} data={airQuality} />
             <ForecastChartInteractive
               isDarkMode={isDarkMode}
+              loading={forecastLoading}
               forecastData={(() => {
                 if (
                   selectedRoute != null &&

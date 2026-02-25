@@ -222,7 +222,7 @@ def get_multi_station_forecast(combined_history_list, active_stations=[0, 1, 2, 
     # 2️⃣ Feature Extraction with Time-Aware Logic (No more manual 0s)
     processed_features = []
     for h in combined_history_list:
-        row = [h.get(col, 0) for col in feature_cols[:17]] # First 9 (AQI features)
+        row = [h.get(col, 0) for col in feature_cols[:9]] # First 9 (AQI features)
         
         row.extend([
             h.get("hour_sin", 0), h.get("hour_cos", 0),

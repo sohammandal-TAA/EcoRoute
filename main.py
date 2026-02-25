@@ -7,10 +7,10 @@ app = FastAPI(title="Stealth AQI API", description="API for AQI route analysis a
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],            # "*" ka matlab hai koi bhi origin access kar sakta hai (Hackathon ke liye best)
+    allow_origins=["*"],            
     allow_credentials=True,
-    allow_methods=["*"],            # Saare methods (GET, POST, etc.) allow hain
-    allow_headers=["*"],            # Saare headers allow hain
+    allow_methods=["*"],            
+    allow_headers=["*"],            
 )
 
 # --- THE ALWAYS-ON HEALTH ROUTE ---

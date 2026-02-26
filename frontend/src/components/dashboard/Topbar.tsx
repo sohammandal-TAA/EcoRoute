@@ -177,7 +177,7 @@ const Topbar: React.FC<TopbarProps> = ({
       </div>
 
       <div className="dashboard-topbar-right">
-        <button type="button" className="icon-pill">🔔</button>
+        {/* <button type="button" className="icon-pill">🔔</button> */}
         <button
           type="button"
           className="icon-pill"

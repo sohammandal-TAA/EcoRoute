@@ -6,7 +6,7 @@ const Hero: React.FC = () => {
     <section className="relative mx-auto flex max-w-6xl flex-col gap-12 pt-10 pb-16 lg:flex-row lg:items-center lg:pt-16">
       <div className="relative z-10 w-full space-y-7 lg:max-w-xl">
         <div className="pill-tag">
-          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-accent-green/15 text-[10px] font-semibold text-accent-green-soft">
+          <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-accent-green/15 text-xs font-semibold text-accent-green-soft shadow-sm">
             New
           </span>
           <span>Available in 50+ Cities Globally</span>
@@ -18,7 +18,7 @@ const Hero: React.FC = () => {
             <br />
             <span className="text-accent-green">on Every Journey</span>
           </h1>
-          <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted-text sm:text-base">
+          <p className="mt-4 max-w-xl text-sm leading-relaxed text-muted-text sm:text-base italic">
             The world&apos;s first AI-powered navigation that prioritizes your lung health by finding
             routes with the lowest air pollution levels in real-time.
           </p>

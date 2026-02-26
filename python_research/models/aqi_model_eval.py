@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 root_path = Path(__file__).resolve().parent.parent.parent
 sys.path.append(str(root_path))
-
+from tsfm_public.toolkit.get_model import get_model
 import os
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1"
@@ -38,9 +38,10 @@ if not GOOGLE_API_KEY:
 
 lstm_model_path = os.path.join(os.path.dirname(__file__), "durgapur_aqi_v1.h5")
 lstm_scaler_path = os.path.join(os.path.dirname(__file__), "scaler_x.pkl")
-ttm_model_path = os.path.join(os.path.dirname(__file__), "durgapur_ttm_model.pt")
-ttm_scaler_path_x = os.path.join(os.path.dirname(__file__), "scaler_x_ttm.pkl")
-ttm_scaler_path_y = os.path.join(os.path.dirname(__file__), "scaler_y_ttm.pkl")
+ttm_model_path = os.path.join(os.path.dirname(__file__), "ttm_aqi_model.pt")
+# ttm_scaler_path_x = os.path.join(os.path.dirname(__file__), "scaler_x_ttm.pkl")
+# ttm_scaler_path_y = os.path.join(os.path.dirname(__file__), "scaler_y_ttm.pkl")
+ttm_scaler_path = os.path.join(os.path.dirname(__file__), "scaler.pkl")
 # =====================================================
 # LOAD MODELS
 # =====================================================
@@ -50,16 +51,32 @@ print("Loading models...")
 lstm_model = keras.models.load_model(lstm_model_path, compile=False)
 lstm_scaler = joblib.load(lstm_scaler_path)
 
-ttm_config = TinyTimeMixerConfig(
-    context_length=24, prediction_length=12, num_input_channels=17,
-    d_model=48, patch_size=4, num_time_features=0)
-model_ttm = TinyTimeMixerForPrediction(ttm_config)
-model_ttm.load_state_dict(torch.load("durgapur_ttm_model.pt", map_location="cpu"))
-model_ttm.to("cpu")
-ttm_scaler_x = joblib.load(ttm_scaler_path_x)
-ttm_scaler_y = joblib.load(ttm_scaler_path_y)
+print("Loading TTM model...")
 
-print("Models loaded successfully.")
+TTM_MODEL_PATH = "ibm-granite/granite-timeseries-ttm-r2"
+
+model_ttm = get_model(
+    TTM_MODEL_PATH,
+    context_length=512,
+    prediction_length=96,
+    freq_prefix_tuning=False,
+    freq=None,
+    prefer_l1_loss=False,
+    prefer_longer_context=True,
+    head_dropout=0.7,
+    loss="mse",
+    quantile=0.5,
+)
+
+state_dict = torch.load(ttm_model_path, map_location="cpu")
+model_ttm.load_state_dict(state_dict)
+
+model_ttm.eval()
+
+ttm_scaler = joblib.load(ttm_scaler_path)
+
+print("TTM model loaded successfully.")
+
 # =====================================================
 # STATIONS CONFIG
 # =====================================================
@@ -334,60 +351,66 @@ def run_lstm_model(lat, lon, station_index):
 
 def run_ttm_model(lat, lon):
     history = fetch_combined_history(lat, lon)
+
     if len(history) < 24:
         return []
 
-    # 1. THIS ORDER MUST MATCH build_feature_matrix EXACTLY
-    cols_base = [
-        "pm2_5", "pm10", "no2", "co", "so2", "o3", "temp_c", "wind", "humidity", 
-             "hour_sin", "hour_cos", "date_sin", "date_cos", "month_sin", "month_cos", "year"
-    ]
-    
-    # 2. Build the matrix and DataFrame
-    X_base = build_feature_matrix(history) 
-    ttm_df = pd.DataFrame(X_base, columns=cols_base)
-    
-    # 3. Add uppercase AQI (to fix the case-sensitive scaler error)
-    ttm_df["AQI"] = [row["aqi"] for row in history]
+    # 1️⃣ Build ONLY the features used during training
+    X_base = build_feature_matrix(history)
 
-    # 4. Scale (Standardizing features)
-    ttm_df[cols_base] = ttm_scaler_x.transform(ttm_df[cols_base])
-    ttm_df[["AQI"]] = ttm_scaler_y.transform(ttm_df[["AQI"]])
+    # IMPORTANT:
+    # If scaler expects 9 features, slice to first 9
+    expected_features = len(ttm_scaler.mean_)
+    X_base = X_base[:, :expected_features]   # Force match
 
-    # 5. Prepare Tensor (Channel order: 16 features + 1 AQI = 17 channels)
-    X_values = ttm_df[cols_base + ["AQI"]].values
-    X_tensor = torch.tensor(X_values, dtype=torch.float32).unsqueeze(0).to("cpu")
+    print("Feature matrix shape:", X_base.shape)
+    print("Scaler expects:", expected_features)
 
-    # 6. Run Prediction
-    model_ttm.eval()
+    # 2️⃣ Scale
+    full_scaled = ttm_scaler.transform(X_base)
+
+    # 3️⃣ Pad 24 → 512
+    context_length = 512
+    current_length = full_scaled.shape[0]
+
+    if current_length < context_length:
+        pad_rows = np.zeros((context_length - current_length, expected_features))
+        full_scaled = np.vstack([pad_rows, full_scaled])
+
+    # 4️⃣ Convert to tensor
+    X_tensor = torch.tensor(full_scaled, dtype=torch.float32).unsqueeze(0)
+
+    # 5️⃣ Forward pass
     with torch.no_grad():
         output_obj = model_ttm(past_values=X_tensor)
-        # output shape is [1, 12, 17] -> [Batch, Prediction_Horizon, Channels]
         ttm_out = output_obj.prediction_outputs.cpu().numpy()
-        
-        # 🔹 CRITICAL CHANGE: 
-        # If your AQI was the LAST column in your training data, change [0, :, 0] to [0, :, -1]
-        # Most TTM setups predict all channels; we want the one corresponding to AQI.
-        raw_preds = ttm_out[0, :, -1].reshape(-1, 1) 
 
-        # Create a temporary DataFrame with the EXACT column name "AQI" 
-        # so the scaler knows which mean/std to use.
-        pred_df = pd.DataFrame(raw_preds, columns=["AQI"])
-        
-        # Now inverse transform
-        final_aqi = ttm_scaler_y.inverse_transform(pred_df).flatten()
+    # 6️⃣ Extract target channel
+    raw_preds = ttm_out[0, :, -1]
 
-    # 7. Format output
+    # 7️⃣ Inverse scale correctly
+    aqi_index = expected_features - 1  # Last feature index
+
+    mean = ttm_scaler.mean_[aqi_index]
+    scale = ttm_scaler.scale_[aqi_index]
+
+    final_aqi = raw_preds * scale + mean
+
+    final_aqi = final_aqi[:12]
+
+    # 8️⃣ Time formatting
     now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
     ist_offset = timezone(timedelta(hours=5, minutes=30))
 
     output = []
+
     for i, val in enumerate(final_aqi, start=1):
         future_time = now + timedelta(hours=i)
         ist_time = future_time.astimezone(ist_offset)
+
         output.append({
             "datetime_ist": ist_time.strftime("%Y-%m-%d %H:%M:%S"),
-            "aqi": float(val) # Removed the max(0.0) clip to see what the raw value is
+            "aqi": float(val)
         })
 
     return output

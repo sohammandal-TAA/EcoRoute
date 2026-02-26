@@ -15,7 +15,6 @@ AI-powered clean route navigation for urban environments
 - [Data & Models](#data--models)
 - [Deployment](#deployment)
 - [License](#license)
-- [Contact](#contact)
 
 ---
 
@@ -43,13 +42,13 @@ EcoRoute.ai is a full-stack platform that delivers real-time, eco-friendly route
 ## Architecture
 ```mermaid
 graph TD
-	A[Frontend (React/Vite)] -->|REST| B[Backend API (FastAPI)]
-	B -->|Model Inference| C[Python ML Models]
-	B -->|Data| D[CSV/Google API]
-	B -->|Routes| E[Java Spring Boot]
-	A -->|OAuth2| E
-	E -->|Swagger| F[API Documentation]
-	B -->|Docker| G[Containerization]
+		A[Frontend (React/Vite)] -- REST --> B[Backend API (FastAPI)]
+		B -- Model Inference --> C[Python ML Models]
+		B -- Data --> D[CSV/Google API]
+		B -- Routes --> E[Java Spring Boot]
+		A -- OAuth2 --> E
+		E -- Swagger --> F[API Documentation]
+		B -- Docker --> G[Containerization]
 ```
 
 ---
@@ -153,7 +152,7 @@ docker-compose up --build
 ---
 
 ## License
-This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+This project is licensed under the MIT License. 
 
 ---
 

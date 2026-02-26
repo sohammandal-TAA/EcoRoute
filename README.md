@@ -56,7 +56,7 @@ graph TD
 ## Tech Stack
 - **Frontend:** React 18+, TypeScript, Vite, Tailwind CSS, @react-google-maps/api
 - **Backend:** FastAPI (Python), Java Spring Boot
-- **AI/ML Models:** TensorFlow, PyTorch, LSTM, TinyTimeMixer
+- **AI/ML Models:** TensorFlow, PyTorch, LSTM, TinyTimeMixer, Ordinary Kriging Algorithm
 - **Data:** Google Maps API, Google Places API, CSV datasets
 - **DevOps:** Docker, docker-compose
 - **Authentication:** Google OAuth2

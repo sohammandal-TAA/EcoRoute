@@ -367,17 +367,22 @@
   gap: 12px;
 }
 
-.route-name {
-  font-size: 13px;
-  font-weight: 500;
+.route-label {
+  display: none;
 }
 
-.route-meta {
-  margin-top: 4px;
-  font-size: 11px;
-  color: var(--text-muted);
-  display: flex;
-  gap: 8px;
+.route-label.is-recommended {
+  display: inline-block;
+  font-size: 14px;
+  font-weight: bold;
+  padding: 2px 12px;
+  border-radius: 8px;
+  margin-bottom: 4px;
+  margin-right: 8px;
+  background: #e8f5e9;
+  color: #2e7d32;
+  letter-spacing: 0.5px;
+  box-shadow: 0 1px 4px rgba(46, 125, 50, 0.08);
 }
 
 .route-score {

@@ -15,6 +15,7 @@ import '../styles/dashboard.css';
  * Dashboard main component for EcoRoute.ai
  * Handles route search, backend sync, and dashboard widget state.
  */
+
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [isDarkMode, setIsDarkMode] = useState(false);
@@ -31,8 +32,10 @@ const Dashboard: React.FC = () => {
   } | null>(null);
   const [routeSensorData, setRouteSensorData] = useState<any[]>([]);
   const [aqiMarkers, setAqiMarkers] = useState<{ location: [number, number]; aqi: number }[]>([]);
+  const [recommendedRouteName, setRecommendedRouteName] = useState<string | null>(null);
   const [allRouteForecasts, setAllRouteForecasts] = useState<any>({});
   const [forecastLoading, setForecastLoading] = useState(false);
+  const [routeQualities, setRouteQualities] = useState<Record<string, 'best' | 'moderate' | 'poor'>>({});
 
 
   /**
@@ -89,6 +92,8 @@ const Dashboard: React.FC = () => {
       setRoutes(backendRoutes);
       // Always deselect route after new destination so user must select
       setSelectedRoute(null);
+      setRecommendedRouteName(null);
+      setRouteQualities({}); // Reset route qualities so cards show UNKNOWN until backend responds
 
       // Fetch pollution/process data
       const processResp = await fetch('http://localhost:8080/api/routes/process', {
@@ -104,6 +109,17 @@ const Dashboard: React.FC = () => {
       });
       if (processResp.ok) {
         const processData = await processResp.json();
+        if (processData.recommended) {
+          setRecommendedRouteName(processData.recommended);
+        }
+        // Extract route qualities (best/moderate/poor) from processData
+        const qualities: Record<string, 'best' | 'moderate' | 'poor'> = {};
+        Object.entries(processData).forEach(([key, value]) => {
+          if (/^Route_\d+$/.test(key) && (value === 'best' || value === 'moderate' || value === 'poor')) {
+            qualities[key] = value;
+          }
+        });
+        setRouteQualities(qualities);
         if (processData.route_analysis && typeof processData.route_analysis === 'object') {
           const sensorsArr = Object.keys(processData.route_analysis).map((key) => processData.route_analysis[key]);
           setRouteSensorData(sensorsArr);
@@ -265,6 +281,8 @@ const Dashboard: React.FC = () => {
             routes={routes}
             selectedRouteIndex={selectedRoute}
             onRouteSelect={setSelectedRoute}
+            recommendedRouteName={recommendedRouteName}
+            routeQualities={routeQualities}
           />
           <div className="dashboard-right-col">
             <AirQualityCard isDarkMode={isDarkMode} data={airQuality} />

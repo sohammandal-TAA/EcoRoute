@@ -5,6 +5,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -28,6 +30,9 @@ import com.google.maps.model.DirectionsResult;
 import com.google.maps.model.DirectionsRoute;
 import com.google.maps.model.LatLng;
 
+import ai.theaware.stealth.dto.PredictionResponseDTO.RouteForecast;
+import ai.theaware.stealth.dto.PredictionResponseDTO.StationForecastEntry;
+import ai.theaware.stealth.dto.RouteAnalysisResponseDTO;
 import ai.theaware.stealth.dto.RouteResponseDTO;
 import ai.theaware.stealth.entity.Route;
 import ai.theaware.stealth.entity.Users;
@@ -37,6 +42,8 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @Slf4j
 public class GoogleRoutingService {
+
+    private static final double SCORING_WEIGHT = 0.5;
 
     @Value("${app.ai.service.url}")
     private String aiAnalyzeUrl;
@@ -59,6 +66,10 @@ public class GoogleRoutingService {
         this.objectMapper = new ObjectMapper();
         this.geometryFactory = new GeometryFactory(new PrecisionModel(), 4326);
     }
+
+    // -------------------------------------------------------------------------
+    // Public API
+    // -------------------------------------------------------------------------
 
     public RouteResponseDTO getProcessedRouteDTO(Double sLat, Double sLon, Double dLat, Double dLon) {
         try {
@@ -102,8 +113,9 @@ public class GoogleRoutingService {
 
         try {
             DirectionsResult result = fetchDirectionsFromGoogle(sLat, sLon, dLat, dLon);
-
             RouteResponseDTO routesDto = buildRouteResponseDTO(result);
+
+            Map<String, Double> routeDurations = extractDurationsMap(result);
 
             Map<String, Object> aiRequest = Map.of(
                     "start_loc", List.of(sLat, sLon),
@@ -113,24 +125,179 @@ public class GoogleRoutingService {
             );
             logJsonPayload(aiRequest);
 
+            // Fire-and-forget async AQI forecast (for /predict endpoint)
             predictionService.triggerPrediction(user.getEmail(), sLat, sLon, dLat, dLon, routesDto.getRoutes());
 
-            Object aiResponse;
+            // Call synchronous AI ground-truth analysis service
+            Object rawAiResponse;
             try {
-                aiResponse = restTemplate.postForObject(aiAnalyzeUrl, aiRequest, Object.class);
+                rawAiResponse = restTemplate.postForObject(aiAnalyzeUrl, aiRequest, Object.class);
             } catch (RestClientException e) {
                 log.error("AI Service Unreachable: {}", e.getMessage());
                 return Map.of("error", "AI Service Unreachable");
             }
 
+            // Build the enriched response with "recommended" appended
+            Object enrichedResponse = appendRecommendation(rawAiResponse, routeDurations, routesDto.getRouteCount());
+
             checkAndSaveHistory(sLat, sLon, dLat, dLon, user, result.routes[0]);
 
-            return aiResponse;
+            return enrichedResponse;
 
         } catch (ApiException | IOException | InterruptedException e) {
             log.error("Fatal routing error", e);
             return Map.of("error", "Processing Error", "message", e.getMessage());
         }
+    }
+
+    // -------------------------------------------------------------------------
+    // Scoring integration
+    // -------------------------------------------------------------------------
+
+    private Object appendRecommendation(Object rawAiResponse,
+                                        Map<String, Double> routeDurations,
+                                        int routeCount) {
+        try {
+            Map<String, Object> aiMap = objectMapper.convertValue(rawAiResponse,
+                    objectMapper.getTypeFactory().constructMapType(LinkedHashMap.class, String.class, Object.class));
+
+            Map<String, RouteForecast> routeForecasts = buildRouteForecastsFromAnalysis(aiMap, routeCount);
+            Map<String, Double> scores = RouteScoringService.computeScores(routeForecasts, routeDurations, SCORING_WEIGHT);
+
+            // Sort route ids by score ascending (lower = better)
+            List<String> ranked = scores.entrySet().stream()
+                    .sorted(Map.Entry.comparingByValue())
+                    .map(Map.Entry::getKey)
+                    .collect(Collectors.toList());
+
+            log.info("[SCORE] Route scores: {} | Ranked (best→poor): {}", scores, ranked);
+
+            RouteAnalysisResponseDTO response = new RouteAnalysisResponseDTO();
+            aiMap.forEach(response::setAiField);
+            applyRankLabels(response, ranked);
+            return response;
+
+        } catch (IllegalArgumentException e) {
+            log.error("[SCORE] Scoring failed, applying default rank labels: {}", e.getMessage(), e);
+            try {
+                Map<String, Object> aiMap = objectMapper.convertValue(rawAiResponse,
+                        objectMapper.getTypeFactory().constructMapType(LinkedHashMap.class, String.class, Object.class));
+                RouteAnalysisResponseDTO response = new RouteAnalysisResponseDTO();
+                aiMap.forEach(response::setAiField);
+                // Fallback: rank by natural order Route_1, Route_2, Route_3
+                List<String> fallback = new ArrayList<>();
+                for (int i = 1; i <= routeCount; i++) fallback.add("Route_" + i);
+                applyRankLabels(response, fallback);
+                return response;
+            } catch (IllegalArgumentException inner) {
+                log.error("[SCORE] Fallback also failed: {}", inner.getMessage());
+                return rawAiResponse;
+            }
+        }
+    }
+
+    private void applyRankLabels(RouteAnalysisResponseDTO response, List<String> ranked) {
+        if (ranked.isEmpty()) return;
+
+        // Build label lookup: routeId -> label, keyed by score-sorted position
+        Map<String, String> labelMap = new HashMap<>();
+        labelMap.put(ranked.get(0), "best");
+        if (ranked.size() == 2) {
+            labelMap.put(ranked.get(1), "poor");
+        } else if (ranked.size() >= 3) {
+            labelMap.put(ranked.get(1), "moderate");
+            labelMap.put(ranked.get(ranked.size() - 1), "poor");
+        }
+        ranked.stream()
+              .sorted()
+              .forEach(routeId -> response.setAiField(routeId, labelMap.get(routeId)));
+
+        response.setRecommended(ranked.get(0));
+    }
+
+    /**
+     * Builds a {@code Map<routeId, RouteForecast>} from the {@code route_analysis}
+     * block inside the AI response map.
+     *
+     * Each detail point's AQI is wrapped into a {@link StationForecastEntry} so
+     * {@link RouteScoringService} can iterate over them uniformly.
+     */
+    private Map<String, RouteForecast> buildRouteForecastsFromAnalysis(Map<String, Object> aiMap, int routeCount) {
+        Map<String, RouteForecast> result = new LinkedHashMap<>();
+
+        Object routeAnalysisRaw = aiMap.get("route_analysis");
+        if (routeAnalysisRaw == null) {
+            log.warn("[SCORE] 'route_analysis' missing from AI response – using empty forecasts");
+            return buildEmptyForecasts(routeCount);
+        }
+
+        Map<String, Object> routeAnalysis;
+        try {
+            routeAnalysis = (Map<String, Object>) routeAnalysisRaw;
+        } catch (ClassCastException e) {
+            log.warn("[SCORE] 'route_analysis' has unexpected type: {}", routeAnalysisRaw.getClass());
+            return buildEmptyForecasts(routeCount);
+        }
+
+        for (Map.Entry<String, Object> entry : routeAnalysis.entrySet()) {
+            String routeId = entry.getKey();
+            Map<String, Object> routeData = (Map<String, Object>) entry.getValue();
+
+            List<Object> details = (List<Object>) routeData.getOrDefault("details", List.of());
+
+            List<StationForecastEntry> forecastPoints = new ArrayList<>();
+            for (Object detailObj : details) {
+                Map<String, Object> detail = (Map<String, Object>) detailObj;
+                Double aqi = toDouble(detail.get("aqi"));
+                if (aqi != null) {
+                    StationForecastEntry entry2 = new StationForecastEntry();
+                    entry2.setAqi(aqi);
+                    forecastPoints.add(entry2);
+                }
+            }
+
+            Double avgAqi = toDouble(routeData.get("avg_aqi"));
+            RouteForecast forecast = new RouteForecast();
+            forecast.setForecast(forecastPoints);
+            forecast.setAvgRouteAqi(avgAqi);
+            result.put(routeId, forecast);
+        }
+
+        return result;
+    }
+
+    /** Fallback: produce empty RouteForecast entries so scoring doesn't crash. */
+    private Map<String, RouteForecast> buildEmptyForecasts(int routeCount) {
+        Map<String, RouteForecast> result = new LinkedHashMap<>();
+        for (int i = 1; i <= routeCount; i++) {
+            RouteForecast rf = new RouteForecast();
+            rf.setForecast(List.of());
+            result.put("Route_" + i, rf);
+        }
+        return result;
+    }
+
+    /**
+     * Extracts travel durations (in minutes) from the Google Directions result,
+     * keyed as "Route_1", "Route_2", …
+     */
+    private Map<String, Double> extractDurationsMap(DirectionsResult result) {
+        Map<String, Double> durations = new HashMap<>();
+        for (int i = 0; i < result.routes.length; i++) {
+            double durationMinutes = result.routes[i].legs[0].duration.inSeconds / 60.0;
+            durations.put("Route_" + (i + 1), durationMinutes);
+        }
+        return durations;
+    }
+
+    // -------------------------------------------------------------------------
+    // Helpers
+    // -------------------------------------------------------------------------
+
+    private Double toDouble(Object value) {
+        if (value == null) return null;
+        if (value instanceof Number number) return number.doubleValue();
+        try { return Double.valueOf(value.toString()); } catch (NumberFormatException e) { return null; }
     }
 
     private DirectionsResult fetchDirectionsFromGoogle(Double sLat, Double sLon, Double dLat, Double dLon)

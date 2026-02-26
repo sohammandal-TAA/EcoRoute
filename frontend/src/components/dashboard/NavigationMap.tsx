@@ -65,6 +65,8 @@ const NavigationMap: React.FC<NavigationMapProps> = ({
   const [directions, setDirections] =
     useState<google.maps.DirectionsResult | null>(null);
 
+  // CHANGED: Use 'hybrid' instead of 'satellite' to show labels/places
+  const [mapTypeId, setMapTypeId] = useState<string>('roadmap');
   const polylinesRef = useRef<google.maps.Polyline[]>([]);
   const polyRequestIdRef = useRef<number>(0);
   const distancesRef = useRef<number[]>([]);
@@ -263,6 +265,10 @@ const NavigationMap: React.FC<NavigationMapProps> = ({
       mapRef.current.setZoom(15);
     }
   }, [currentLocation]);
+  const toggleMapType = () => {
+    const nextType = mapTypeId === 'roadmap' ? 'hybrid' : 'roadmap';
+    setMapTypeId(nextType);
+  };
 
   if (!isLoaded || !currentLocation) {
     return <p>Loading Map...</p>;
@@ -271,11 +277,13 @@ const NavigationMap: React.FC<NavigationMapProps> = ({
   return (
     <div style={{ position: 'relative' }}>
       <GoogleMap
-        key={destinationOverride ? `${destinationOverride.lat}-${destinationOverride.lng}` : 'no-dest'}
+        // FIX: Removed the key based on destination. 
+        // This stops the map from "re-mounting" and resetting states on every search.
         mapContainerStyle={mapContainerStyle}
         center={currentLocation}
         zoom={zoom}
         onLoad={onLoad}
+        mapTypeId={mapTypeId} 
         options={{
           disableDefaultUI: true,
           gestureHandling: "greedy",
@@ -293,8 +301,7 @@ const NavigationMap: React.FC<NavigationMapProps> = ({
             options={{ suppressMarkers: true }}
           />
         )}
-        {/* Render AQI markers if provided */}
-        {/* Render AQI markers using OverlayView for correct placement */}
+        
         {Array.isArray(aqiMarkers) && aqiMarkers.map((marker: AQIMarker, idx: number) => (
           <OverlayView
             key={`aqi-marker-${idx}`}
@@ -324,6 +331,37 @@ const NavigationMap: React.FC<NavigationMapProps> = ({
           </OverlayView>
         ))}
       </GoogleMap>
+
+      <button
+        onClick={toggleMapType}
+        style={{
+          position: 'absolute',
+          top: '15px',
+          right: '15px',
+          zIndex: 10,
+          width: '50px',
+          height: '50px',
+          backgroundColor: '#fff',
+          border: 'none',
+          borderRadius: '12px',
+          cursor: 'pointer',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '4px',
+        }}
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2L4.5 9L12 16L19.5 9L12 2Z" stroke="#4285F4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M4.5 15L12 22L19.5 15" stroke="#4285F4" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+        <span style={{ fontSize: '9px', fontWeight: 'bold', color: '#4285F4', marginTop: '2px' }}>
+          {mapTypeId === 'roadmap' ? 'SAT' : 'MAP'}
+        </span>
+      </button>
+
       <button
         onClick={handleResetPosition}
         style={{

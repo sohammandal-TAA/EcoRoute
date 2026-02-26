@@ -9,12 +9,12 @@ interface ForecastChartProps {
 
 // AQI color coding based on value
 const getAqiColor = (aqi: number): string => {
-  if (aqi <= 50) return '#007f2e'; // Deep Green - Good
-  if (aqi <= 100) return '#7ed957'; // Green Light - Satisfactory
-  if (aqi <= 200) return '#ffe600'; // Yellow - Moderate
-  if (aqi <= 300) return '#ff9900'; // Orange - Poor
-  if (aqi <= 400) return '#ff0000'; // Red - Very Poor
-  return '#7e0023'; // Maroon - Severe
+  if (aqi <= 50) return '#166534';   // Rich Emerald (Good)
+  if (aqi <= 100) return '#65a30d';  // Smooth Lime (Satisfactory)
+  if (aqi <= 200) return '#f3dc13';  // Warm Amber (Moderate)
+  if (aqi <= 300) return '#f97316';  // Deep Orange (Poor)
+  if (aqi <= 400) return '#dc2626';  // Refined Red (Very Poor)
+  return '#7f1d1d';   // Maroon - Severe
 };
 
 // Deprecated: kept for compatibility if needed
@@ -135,44 +135,56 @@ const ForecastChartInteractive: React.FC<ForecastChartInteractiveProps> = ({ isD
                     </text>
                   );
                 }}
-                minTickGap={8}
+                minTickGap={20}
                 height={48}
                 allowDataOverflow={false}
               />
               <Tooltip
-                cursor={{ fill: 'rgba(0,0,0,0.05)' }}
-                contentStyle={{
-                  background: isDarkMode ? '#222' : '#fff',
-                  color: isDarkMode ? '#fff' : '#222',
-                  borderRadius: 8,
-                  border: '1px solid #888',
-                  fontSize: 13,
-                  fontWeight: 500,
-                  boxShadow: '0 2px 8px rgba(0,0,0,0.10)',
-                }}
-                labelStyle={{
-                  color: isDarkMode ? '#fff' : '#222',
-                  fontWeight: 600,
-                  fontSize: 13,
-                }}
-              />
-              <Bar
+                  cursor={{ fill: isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.05)' }}
+                  contentStyle={{
+                    background: isDarkMode ? '#1f2937' : '#ffffff',
+                    borderRadius: 10,
+                    border: isDarkMode ? '1px solid #374151' : '1px solid #e5e7eb',
+                    fontSize: 13,
+                    fontWeight: 500,
+                    boxShadow: isDarkMode
+                      ? '0 4px 16px rgba(0,0,0,0.4)'
+                      : '0 2px 8px rgba(0,0,0,0.10)',
+                  }}
+                  labelStyle={{
+                    color: isDarkMode ? '#ffffff' : '#111827',
+                    fontWeight: 600,
+                    fontSize: 13,
+                  }}
+                  itemStyle={{
+                    color: isDarkMode ? '#ffffff' : '#111827',
+                    fontWeight: 500,
+                  }}
+                />
+             <Bar
                 dataKey="value"
-                radius={[6, 6, 0, 0]}
+                radius={[30, 30, 30, 30]}   // fully smooth rounded
                 isAnimationActive={false}
-                fill="#4caf50"
+                // animationDuration={1000}
+                barSize={28}
                 label={{
-                  position: 'top',
+                  position: "top",
+                  offset: 14,
+                  fontSize: 14,
+                  fontWeight: 700,
                   fill: isDarkMode ? '#fff' : '#222',
-                  fontWeight: 600,
-                  fontSize: 13,
-                  formatter: (v: number) => (v != null ? Math.round(v) : ''),
+                  formatter: (v: number) => (v ? Math.round(v) : "")
                 }}
-                barSize={24}
-                maxBarSize={28}
               >
                 {forecastData.map((entry, index) => (
-                  <Cell key={index} fill={getAqiColor(entry.value)} />
+                  <Cell
+                    key={`cell-${index}`}
+                    fill={getAqiColor(entry.value)}
+                    style={{
+                      filter: "drop-shadow(0px 8px 18px rgba(0,0,0,0.12))",
+                      transition: "all 0.3s ease"
+                    }}
+                  />
                 ))}
               </Bar>
               {/* Fixed Y-axis for consistent scale */}

@@ -1,51 +1,69 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
-interface AirQualitySnapshot {
-  /** e.g. overall AQI along the selected route */
-  aqiIndex?: number | null;
-  /** e.g. kilograms of pollutants avoided */
-  kgSaved?: number | null;
-  /** e.g. progress towards weekly goal, 0–100 */
-  goalPercent?: number | null;
-}
+export type Metrics = {
+  exposure_reduction_pct: number;
+  pm25_avoided_ug: number;
+  equivalent_minutes_avoided: number;
+};
 
 interface AirQualityCardProps {
   isDarkMode: boolean;
-  data?: AirQualitySnapshot | null;
+  metrics?: Metrics;
+  destinationKey?: string | number; // unique key that changes when destination changes
 }
 
-const AirQualityCard: React.FC<AirQualityCardProps> = ({ data }) => {
-  const kgSaved = data?.kgSaved ?? null;
-  const goalPercent = data?.goalPercent ?? null;
-  const aqiIndex = data?.aqiIndex ?? null;
+
+const zeroMetrics: Metrics = {
+  exposure_reduction_pct: 0,
+  pm25_avoided_ug: 0,
+  equivalent_minutes_avoided: 0
+};
+
+const AirQualityCard: React.FC<AirQualityCardProps> = ({ isDarkMode, metrics: metricsProp }) => {
+  const metrics = metricsProp ?? zeroMetrics;
+  const error: string | null = null;
+
+  // Helper formatters
+  const formatPct = (val?: number) =>
+    typeof val === 'number' ? `${val.toFixed(1)}%` : '-- %';
+  const formatPM25 = (val?: number) =>
+    typeof val === 'number' ? `${val.toFixed(2)} µg less PM2.5` : '-- µg';
+  const formatMinutes = (val?: number) =>
+    typeof val === 'number'
+      ? `Equivalent to ${val.toFixed(1)} minutes fewer on a high pollution route`
+      : '-- minutes';
+  // For now, set the weekly goal progress to 0 (to be implemented later)
+  const progress = 0;
 
   return (
     <section className="dashboard-card aq-card">
       <div className="aq-left">
-        <div className="aq-tag">no CO₂ gained</div>
         <div className="aq-main">
           <div className="aq-kg">
-            {kgSaved != null ? kgSaved : '—'}
-            <span>kg</span>
+            {formatPct(metrics?.exposure_reduction_pct)}
           </div>
-          <p className="aq-subtitle">Reduced inhalation</p>
+          <p className="aq-subtitle">Exposure Reduced</p>
         </div>
         <p className="aq-description">
-          By choosing cleaner routes, you avoided significant pollutants this month.
+          {formatPM25(metrics?.pm25_avoided_ug)}
         </p>
+        <p className="aq-description">
+          {formatMinutes(metrics?.equivalent_minutes_avoided)}
+        </p>
+        {error && <p className="aq-description" style={{ color: 'red' }}>{error}</p>}
       </div>
       <div className="aq-right">
-        <p className="aq-label">Current level</p>
+        <p className="aq-label">Weekly Goal</p>
         <p className="aq-percent">
-          {goalPercent != null ? `${goalPercent}%` : '—'}
+          {formatPct(0)}
         </p>
         <div className="aq-progress">
-          <div className="aq-progress-fill" />
+          <div
+            className="aq-progress-fill"
+            style={{ width: `${progress}%` }}
+          />
         </div>
-        <p className="aq-footnote">Towards your weekly clean air goal</p>
-        {aqiIndex != null && (
-          <p className="aq-index">Route index: {aqiIndex}</p>
-        )}
+        <p className="aq-footnote">Progress towards your weekly clean air goal</p>
       </div>
     </section>
   );

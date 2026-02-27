@@ -6,6 +6,7 @@ interface TopbarProps {
   onToggleTheme: () => void;
   onSearchDestination?: (placeId: string, description: string) => void;
   onLogoClick?: () => void;
+  userName: string;
 }
 
 
@@ -14,6 +15,7 @@ const Topbar: React.FC<TopbarProps> = ({
   onToggleTheme,
   onSearchDestination,
   onLogoClick,
+  userName,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
   const [suggestions, setSuggestions] = useState<google.maps.places.AutocompletePrediction[]>([]);

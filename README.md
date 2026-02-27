@@ -40,18 +40,9 @@ EcoRoute.ai is a full-stack platform that delivers real-time, eco-friendly route
 ---
 
 ## Architecture
-```mermaid
-graph TD
-  A["Frontend (React/Vite)"] -- "REST" --> B["Backend API (Java Spring Boot)"]
-  B -- "Model Inference" --> C[Python ML Models]
-  B -- "Data" --> D["CSV/Google API"]
-  B -- "Routes" --> E[FastAPI- Microservices]
-  A -- "OAuth2" --> B
-  B -- "Swagger" --> F[API Documentation]
-  E -- "Swagger" --> F
-  B -- "Docker" --> G[Containerization]
-```
----
+
+![coRoute.ai Architecture](Ecoroute_ARCH.png)
+
 
 ## Tech Stack
 - **Frontend:** React 18+, TypeScript, Vite, Tailwind CSS, @react-google-maps/api

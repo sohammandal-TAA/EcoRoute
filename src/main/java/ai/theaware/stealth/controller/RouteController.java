@@ -16,6 +16,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import ai.theaware.stealth.dto.PredictionResponseDTO;
+import ai.theaware.stealth.dto.RouteAnalysisResponseDTO;
 import ai.theaware.stealth.dto.RouteRequestDTO;
 import ai.theaware.stealth.dto.RouteResponseDTO;
 import ai.theaware.stealth.entity.Users;
@@ -54,24 +55,26 @@ public class RouteController {
     }
 
     @PostMapping("/process")
-    public ResponseEntity<?> processRoute(
+    public ResponseEntity<RouteAnalysisResponseDTO> processRoute(
             @RequestBody RouteRequestDTO request,
-            @AuthenticationPrincipal OAuth2User principal) {
+            @AuthenticationPrincipal OAuth2User principal
+    ) {
 
         if (principal == null) {
-            return ResponseEntity.status(401).body(Map.of("error", "User not authenticated"));
+            return ResponseEntity.status(401).build();
         }
 
         String email = principal.getAttribute("email");
         Users user = userService.findByEmail(email);
 
-        Object result = googleRoutingService.processRoute(
-                request.getSLat(),
-                request.getSLon(),
-                request.getDLat(),
-                request.getDLon(),
-                user
-        );
+        RouteAnalysisResponseDTO result =
+                googleRoutingService.processRoute(
+                        request.getSLat(),
+                        request.getSLon(),
+                        request.getDLat(),
+                        request.getDLon(),
+                        user
+                );
 
         return ResponseEntity.ok(result);
     }

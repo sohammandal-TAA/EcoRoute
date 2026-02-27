@@ -98,13 +98,6 @@ docker-compose up --build
 
 ---
 
-## Usage
-- Access the frontend at [http://localhost:5173](http://localhost:5173)
-- API available at [http://localhost:8000](http://localhost:8000) (FastAPI) and [http://localhost:8080](http://localhost:8080) (Spring Boot)
-- Authenticate via Google OAuth2 for personalized features
-
----
-
 ## API Endpoints
 ### Route Analysis
 - `POST /api/routes/process` – Returns Google Maps routes with AQI and travel-time scores

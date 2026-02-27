@@ -44,6 +44,12 @@ public class HealthMetricsService {
                 RouteHealthMetricsService.compute(routeAnalysis, recommendedRoute);
 
         log.info("[HEALTH] {}", metrics);
+        
+        if (metrics.pm25AvoidedUg < 0 || metrics.equivalentMinutes < 0) {
+            log.warn("[HEALTH] Negative metrics detected before clamp for route={} — " +
+                    "recommended route may have higher PM2.5 than alternatives. " +
+                    "Check scoring weight configuration.", recommendedRoute);
+        }
 
         return new HealthMetricsResponseDTO(
                 metrics.exposureReductionPct,

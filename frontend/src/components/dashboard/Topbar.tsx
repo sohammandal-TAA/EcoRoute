@@ -1,27 +1,55 @@
-import React, { useEffect, useState, useRef } from "react"; // Added useRef
+import React, { useEffect, useState, useRef } from "react";
+import './TopbarProfileCard.css';
 
 interface TopbarProps {
   isDarkMode: boolean;
   onToggleTheme: () => void;
-  userName?: string;
-
-  // 🔥 Now we send placeId instead of plain string
   onSearchDestination?: (placeId: string, description: string) => void;
   onLogoClick?: () => void;
 }
 
+
 const Topbar: React.FC<TopbarProps> = ({
   isDarkMode,
   onToggleTheme,
-  userName,
   onSearchDestination,
   onLogoClick,
 }) => {
   const [searchQuery, setSearchQuery] = useState("");
-  const [suggestions, setSuggestions] = useState<
-    google.maps.places.AutocompletePrediction[]
-  >([]);
+  const [suggestions, setSuggestions] = useState<google.maps.places.AutocompletePrediction[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [user, setUser] = useState<{ name?: string; email?: string; picture?: string } | null>(null);
+  const [showProfile, setShowProfile] = useState(false);
+  // Close profile card on outside click
+  const profileRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!showProfile) return;
+    function handleClick(e: MouseEvent) {
+      if (profileRef.current && !profileRef.current.contains(e.target as Node)) {
+        setShowProfile(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showProfile]);
+
+  // Fetch user info from /api/user/me
+  useEffect(() => {
+    fetch("/api/user/me", { credentials: "include" })
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => {
+        if (data) {
+          setUser({
+            name: data.name || data.given_name || data.email || "Guest",
+            email: data.email,
+            picture: data.picture || data.avatar_url || data.avatar,
+          });
+        } else {
+          setUser(null);
+        }
+      })
+      .catch(() => setUser(null));
+  }, []);
 
   // 🔥 Refs for autoscrolling
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -37,7 +65,7 @@ const Topbar: React.FC<TopbarProps> = ({
     }
   }, [selectedIndex]);
 
-  const displayName = (userName || "Guest").trim();
+  const displayName = (user?.name || "Guest").trim();
   const initials =
     displayName
       .split(" ")
@@ -160,7 +188,7 @@ const Topbar: React.FC<TopbarProps> = ({
                   padding: "10px 14px",
                   cursor: "pointer",
                   backgroundColor:
-                    selectedIndex === index 
+                    selectedIndex === index
                       ? (isDarkMode ? "#2d6a4f" : "#f0f0f0")
                       : (isDarkMode ? "#1a4d2e" : "white"),
                   color: isDarkMode ? "#e8f5e9" : "#000",
@@ -185,8 +213,67 @@ const Topbar: React.FC<TopbarProps> = ({
         >
           {isDarkMode ? "☀️" : "🌙"}
         </button>
-        <div className="dashboard-avatar">
-          <span>{initials}</span>
+        <div className="dashboard-avatar" style={{ position: 'relative' }}>
+          <button
+            type="button"
+            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+            onClick={() => setShowProfile((v) => !v)}
+            aria-label="Show profile"
+          >
+            {user?.picture ? (
+              <img
+                src={user.picture}
+                alt={displayName}
+                style={{ width: 32, height: 32, borderRadius: "50%", objectFit: "cover" }}
+              />
+            ) : (
+              <span>{initials}</span>
+            )}
+          </button>
+          {showProfile && (
+            <div
+              ref={profileRef}
+              className="profile-card-anim"
+              style={{
+                position: 'absolute',
+                top: 40,
+                right: 0,
+                minWidth: 220,
+                background: isDarkMode ? '#1a4d2e' : '#fff',
+                color: isDarkMode ? '#e8f5e9' : '#222',
+                borderRadius: 12,
+                boxShadow: '0 8px 32px rgba(0,0,0,0.18)',
+                padding: 20,
+                zIndex: 2000,
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                animation: 'profileCardFadeIn 0.22s cubic-bezier(.4,1.4,.6,1)'
+              }}
+            >
+              {user?.picture ? (
+                <div style={{
+                  padding: 3,
+                  borderRadius: '50%',
+                  background: isDarkMode ? '#174c36' : '#f0f0f0',
+                  marginBottom: 12,
+                  boxShadow: '0 6px 32px 0 rgba(0,0,0,0.38), 0 2px 12px 0 rgba(0,0,0,0.22)'
+                }}>
+                  <img
+                    src={user.picture}
+                    alt={displayName}
+                    style={{ width: 92, height: 92, borderRadius: '50%', objectFit: 'cover', display: 'block' }}
+                  />
+                </div>
+              ) : (
+                <div style={{ width: 92, height: 92, borderRadius: '50%', background: '#b7e4c7', color: '#222', fontSize: 38, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 12 }}>
+                  {initials}
+                </div>
+              )}
+              <div style={{ fontWeight: 600, fontSize: 18, marginBottom: 4 }}>{displayName}</div>
+              <div style={{ fontSize: 12, color: isDarkMode ? '#b7e4c7' : '#555', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center', maxWidth: 180 }}>{user?.email}</div>
+            </div>
+          )}
         </div>
         <span className="dashboard-username">{displayName}</span>
       </div>

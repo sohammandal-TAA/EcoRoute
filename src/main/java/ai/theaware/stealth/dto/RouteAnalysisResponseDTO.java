@@ -14,7 +14,13 @@ import lombok.NoArgsConstructor;
 
 @Data
 @NoArgsConstructor
-@JsonPropertyOrder({ "best", "moderate", "poor", "recommended" })
+@JsonPropertyOrder({ 
+    "best", 
+    "moderate", 
+    "poor", 
+    "recommended",
+    "health_metrics" 
+})
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class RouteAnalysisResponseDTO {
 
@@ -31,6 +37,9 @@ public class RouteAnalysisResponseDTO {
 
     @JsonProperty("recommended")
     private String recommended;
+
+    @JsonProperty("health_metrics")
+    private HealthMetricsResponseDTO healthMetrics;
 
     @JsonAnyGetter
     public Map<String, Object> getAiFields() {

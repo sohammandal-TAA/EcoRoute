@@ -30,6 +30,7 @@ import com.google.maps.model.DirectionsResult;
 import com.google.maps.model.DirectionsRoute;
 import com.google.maps.model.LatLng;
 
+import ai.theaware.stealth.dto.HealthMetricsResponseDTO;
 import ai.theaware.stealth.dto.PredictionResponseDTO.RouteForecast;
 import ai.theaware.stealth.dto.PredictionResponseDTO.StationForecastEntry;
 import ai.theaware.stealth.dto.RouteAnalysisResponseDTO;
@@ -54,15 +55,22 @@ public class GoogleRoutingService {
     private final RestTemplate restTemplate;
     private final ObjectMapper objectMapper;
     private final PredictionService predictionService;
+    private final HealthMetricsService healthMetricsService;
 
     private static final double INTERVAL_METERS = 1000.0;
 
-    public GoogleRoutingService(RouteRepository routeRepository, RestTemplate restTemplate,
-                                GeoApiContext geoApiContext, PredictionService predictionService) {
+    public GoogleRoutingService(
+            RouteRepository routeRepository,
+            RestTemplate restTemplate,
+            GeoApiContext geoApiContext,
+            PredictionService predictionService,
+            HealthMetricsService healthMetricsService
+    ) {
         this.routeRepository = routeRepository;
         this.restTemplate = restTemplate;
         this.geoApiContext = geoApiContext;
         this.predictionService = predictionService;
+        this.healthMetricsService = healthMetricsService;
         this.objectMapper = new ObjectMapper();
         this.geometryFactory = new GeometryFactory(new PrecisionModel(), 4326);
     }
@@ -108,14 +116,26 @@ public class GoogleRoutingService {
     }
 
     @Cacheable(value = "aqi_routes", key = "#sLat + ',' + #sLon + ',' + #dLat + ',' + #dLon")
-    public Object processRoute(Double sLat, Double sLon, Double dLat, Double dLon, Users user) {
+    public RouteAnalysisResponseDTO processRoute(
+            Double sLat,
+            Double sLon,
+            Double dLat,
+            Double dLon,
+            Users user
+    ) {
+
         log.info("[CACHE MISS] Processing fresh request for user: {}", user.getEmail());
 
         try {
-            DirectionsResult result = fetchDirectionsFromGoogle(sLat, sLon, dLat, dLon);
-            RouteResponseDTO routesDto = buildRouteResponseDTO(result);
 
-            Map<String, Double> routeDurations = extractDurationsMap(result);
+            DirectionsResult result =
+                    fetchDirectionsFromGoogle(sLat, sLon, dLat, dLon);
+
+            RouteResponseDTO routesDto =
+                    buildRouteResponseDTO(result);
+
+            Map<String, Double> routeDurations =
+                    extractDurationsMap(result);
 
             Map<String, Object> aiRequest = Map.of(
                     "start_loc", List.of(sLat, sLon),
@@ -123,30 +143,71 @@ public class GoogleRoutingService {
                     "routeCount", routesDto.getRouteCount(),
                     "routes", routesDto.getRoutes()
             );
+
             logJsonPayload(aiRequest);
 
-            // Fire-and-forget async AQI forecast (for /predict endpoint)
-            predictionService.triggerPrediction(user.getEmail(), sLat, sLon, dLat, dLon, routesDto.getRoutes());
+            // Fire-and-forget async forecast
+            predictionService.triggerPrediction(
+                    user.getEmail(),
+                    sLat, sLon,
+                    dLat, dLon,
+                    routesDto.getRoutes()
+            );
 
-            // Call synchronous AI ground-truth analysis service
+            // Call AI analysis service
             Object rawAiResponse;
+
             try {
-                rawAiResponse = restTemplate.postForObject(aiAnalyzeUrl, aiRequest, Object.class);
+                rawAiResponse = restTemplate.postForObject(
+                        aiAnalyzeUrl,
+                        aiRequest,
+                        Object.class
+                );
             } catch (RestClientException e) {
+
                 log.error("AI Service Unreachable: {}", e.getMessage());
-                return Map.of("error", "AI Service Unreachable");
+
+                RouteAnalysisResponseDTO errorResponse =
+                        new RouteAnalysisResponseDTO();
+
+                errorResponse.setRecommended(null);
+                errorResponse.setHealthMetrics(null);
+
+                errorResponse.setAiField("status", "error");
+                errorResponse.setAiField("message", "AI Service Unreachable");
+
+                return errorResponse;
             }
 
-            // Build the enriched response with "recommended" appended
-            Object enrichedResponse = appendRecommendation(rawAiResponse, routeDurations, routesDto.getRouteCount());
+            // Save history
+            checkAndSaveHistory(
+                    sLat, sLon,
+                    dLat, dLon,
+                    user,
+                    result.routes[0]
+            );
 
-            checkAndSaveHistory(sLat, sLon, dLat, dLon, user, result.routes[0]);
-
-            return enrichedResponse;
+            // Enrich with scoring + health metrics
+            return (RouteAnalysisResponseDTO) appendRecommendation(
+                    rawAiResponse,
+                    routeDurations,
+                    routesDto.getRouteCount()
+            );
 
         } catch (ApiException | IOException | InterruptedException e) {
+
             log.error("Fatal routing error", e);
-            return Map.of("error", "Processing Error", "message", e.getMessage());
+
+            RouteAnalysisResponseDTO errorResponse =
+                    new RouteAnalysisResponseDTO();
+
+            errorResponse.setRecommended(null);
+            errorResponse.setHealthMetrics(null);
+
+            errorResponse.setAiField("status", "error");
+            errorResponse.setAiField("message", "Processing Error: " + e.getMessage());
+
+            return errorResponse;
         }
     }
 
@@ -175,6 +236,17 @@ public class GoogleRoutingService {
             RouteAnalysisResponseDTO response = new RouteAnalysisResponseDTO();
             aiMap.forEach(response::setAiField);
             applyRankLabels(response, ranked);
+
+            // Compute health metrics using full enriched map
+            Map<String, Object> enrichedMap = new LinkedHashMap<>(aiMap);
+            enrichedMap.put("recommended", ranked.get(0));
+
+            HealthMetricsResponseDTO healthMetrics =
+                    healthMetricsService.compute(enrichedMap);
+
+            // Attach health metrics
+            response.setHealthMetrics(healthMetrics);
+
             return response;
 
         } catch (IllegalArgumentException e) {

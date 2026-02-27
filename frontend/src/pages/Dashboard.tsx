@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import Topbar from '../components/dashboard/Topbar';
 import NavigationMap from '../components/dashboard/NavigationMap';
 import AlternativeRoutes from '../components/dashboard/AlternativeRoutes';
-import AirQualityCard from '../components/dashboard/AirQualityCard';
+import AirQualityCard, { type Metrics } from '../components/dashboard/AirQualityCard';
 import { ForecastChartInteractive } from '../components/dashboard/ForecastChart';
 import SensorReadings from '../components/dashboard/SensorReadings';
 import EcoProCard from '../components/dashboard/EcoProCard';
@@ -25,11 +25,7 @@ const Dashboard: React.FC = () => {
   const [originCoords, setOriginCoords] = useState<google.maps.LatLngLiteral | null>(null);
   const [destinationCoords, setDestinationCoords] = useState<google.maps.LatLngLiteral | null>(null);
   const [routes, setRoutes] = useState<RouteOption[]>([]);
-  const [airQuality, setAirQuality] = useState<{
-    aqiIndex?: number | null;
-    kgSaved?: number | null;
-    goalPercent?: number | null;
-  } | null>(null);
+  const [airQualityMetrics, setAirQualityMetrics] = useState<Metrics | null>(null);
   const [routeSensorData, setRouteSensorData] = useState<any[]>([]);
   const [aqiMarkers, setAqiMarkers] = useState<{ location: [number, number]; aqi: number }[]>([]);
   const [recommendedRouteName, setRecommendedRouteName] = useState<string | null>(null);
@@ -138,6 +134,12 @@ const Dashboard: React.FC = () => {
           setRouteSensorData([]);
           setAqiMarkers([]);
         }
+        // Set health_metrics for AirQualityCard
+        if (processData.health_metrics && typeof processData.health_metrics === 'object') {
+          setAirQualityMetrics(processData.health_metrics);
+        } else {
+          setAirQualityMetrics(null);
+        }
         // Fetch forecast after process
         try {
           const predictResp = await fetch('/api/routes/predict', { credentials: 'include' });
@@ -196,7 +198,7 @@ const Dashboard: React.FC = () => {
 
     // Clear old data when new search begins
     setRoutes([]);
-    setAirQuality(null);
+    // setAirQuality(null); // removed, now using airQualityMetrics
     setRouteInfo(null);
 
     // If it looks like a place_id, use PlacesService
@@ -285,7 +287,7 @@ const Dashboard: React.FC = () => {
             routeQualities={routeQualities}
           />
           <div className="dashboard-right-col">
-            <AirQualityCard isDarkMode={isDarkMode} data={airQuality} />
+            <AirQualityCard isDarkMode={isDarkMode} metrics={airQualityMetrics ?? undefined} />
             <ForecastChartInteractive
               isDarkMode={isDarkMode}
               loading={forecastLoading}

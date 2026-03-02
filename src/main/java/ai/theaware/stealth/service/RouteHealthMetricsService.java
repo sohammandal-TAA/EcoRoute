@@ -2,6 +2,8 @@ package ai.theaware.stealth.service;
 
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public final class RouteHealthMetricsService {
 
@@ -61,7 +63,7 @@ public final class RouteHealthMetricsService {
         double eEco = avgAqiEco  * tEco;
         double dEco = avgPm25Eco * VENTILATION_RATE * tEco;
 
-        // ── Find WORST alternative (highest exposure), not mean ──────────────
+        // ── Find WORST alternative (highest exposure) ──────────────
         double worstExposure = Double.MIN_VALUE;
         double worstDose     = Double.MIN_VALUE;
         double worstDuration = 0.0;
@@ -121,6 +123,9 @@ public final class RouteHealthMetricsService {
     // -------------------------------------------------------------------------
 
     private static double extractAvgAqi(Map<String, Object> routeData) {
+        Object precomputed = routeData.get("avg_aqi");
+        if (precomputed instanceof Number number) 
+            return number.doubleValue();
         return averageField(routeData, "aqi");
     }
 
@@ -164,11 +169,11 @@ public final class RouteHealthMetricsService {
         String duration = ((String) raw).trim().toLowerCase();
         double total    = 0.0;
 
-        java.util.regex.Matcher h = java.util.regex.Pattern
+        Matcher h = Pattern
                 .compile("(\\d+)\\s*hour").matcher(duration);
         if (h.find()) total += Integer.parseInt(h.group(1)) * 60.0;
 
-        java.util.regex.Matcher m = java.util.regex.Pattern
+        Matcher m = Pattern
                 .compile("(\\d+)\\s*min").matcher(duration);
         if (m.find()) total += Integer.parseInt(m.group(1));
 

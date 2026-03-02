@@ -198,8 +198,12 @@ const Dashboard: React.FC = () => {
 
     // Clear old data when new search begins
     setRoutes([]);
-    // setAirQuality(null); // removed, now using airQualityMetrics
     setRouteInfo(null);
+    setAirQualityMetrics({
+      exposure_reduction_pct: 0,
+      pm25_avoided_ug: 0,
+      equivalent_minutes_avoided: 0
+    });
 
     // If it looks like a place_id, use PlacesService
     if (placeIdOrQuery.startsWith("ChIJ") && window.google.maps.places) {

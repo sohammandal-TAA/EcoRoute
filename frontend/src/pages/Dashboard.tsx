@@ -169,12 +169,16 @@ const Dashboard: React.FC = () => {
    * Triggers backend sync when origin or destination changes.
    */
   useEffect(() => {
-    if (!originCoords || !destinationCoords) return;
+    if (!destinationCoords || !originCoords) return;
+    // Only re-fetch when destination changes.
+    // originCoords is read from state at call time, not watched.
+    const capturedOrigin = originCoords;
     const timeout = setTimeout(() => {
-      fetchRawRouteMarkers(originCoords, destinationCoords);
-    }, 800); // throttle backend calls
+      fetchRawRouteMarkers(capturedOrigin, destinationCoords);
+    }, 800);
     return () => clearTimeout(timeout);
-  }, [originCoords, destinationCoords, fetchRawRouteMarkers]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [destinationCoords]); // <-- intentionally omit originCoords
 
 
   /**

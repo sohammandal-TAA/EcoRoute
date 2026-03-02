@@ -19,7 +19,7 @@ const Footer: React.FC = () => {
           </div>
           <p className="max-w-xs text-xs leading-relaxed text-muted-text italic">
             "Dedicated to improving global urban health through AI-driven environmental data and
-            navigation solutions".
+            navigation solutions"
           </p>
           <div className="flex gap-3 text-[11px]">
             <span>Twitter</span>
@@ -74,7 +74,7 @@ const Footer: React.FC = () => {
         </div>
       </div>
       <div className="mt-6 text-center text-[11px] text-muted-text">
-        © {new Date().getFullYear()} EcoRoute.AI. All rights reserved. · Social Data Monitoring
+        © {new Date().getFullYear()} EcoRoute.AI. All rights reserved. Social Data Monitoring
       </div>
     </footer>
   );

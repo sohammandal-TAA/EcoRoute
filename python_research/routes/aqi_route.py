@@ -241,13 +241,13 @@ async def predict_all_stations(data: RouteRequest):
                 pts = route.coordinates
                 
                 # --- DIVERSIFICATION LOGIC ---
-                # Agar Google same coordinates de raha hai, toh hum 'Path Simulation' karenge
+               
                 # Route 1: Direct (Model Default)
                 # Route 2: Industry Bias (DSP Side)
                 # Route 3: Residential Bias (Bidhannagar Side)
                 bias_lat, bias_lng = 0.0, 0.0
                 
-                if idx == 1: # Route 2 ko Industrial (Station 3) ki taraf thoda pull karo
+                if idx == 1: 
                     bias_lat = (STATIONS["station_3"]["lat"] - pts[0].lat) * 0.15
                     bias_lng = (STATIONS["station_3"]["lon"] - pts[0].lng) * 0.15
                 elif idx == 2: # Route 3 ko Green (Station 0) ki taraf pull karo

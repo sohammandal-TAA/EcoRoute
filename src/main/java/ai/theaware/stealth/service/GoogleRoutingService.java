@@ -38,6 +38,7 @@ import ai.theaware.stealth.dto.RouteResponseDTO;
 import ai.theaware.stealth.entity.Route;
 import ai.theaware.stealth.entity.Users;
 import ai.theaware.stealth.repository.RouteRepository;
+import ai.theaware.stealth.config.CastUtils;
 import lombok.extern.slf4j.Slf4j;
 
 @Service
@@ -80,6 +81,7 @@ public class GoogleRoutingService {
     // -------------------------------------------------------------------------
 
     public RouteResponseDTO getProcessedRouteDTO(Double sLat, Double sLon, Double dLat, Double dLon) {
+        validateCoordinates(sLat, sLon, dLat, dLon);
         try {
             DirectionsResult result = fetchDirectionsFromGoogle(sLat, sLon, dLat, dLon);
             return buildRouteResponseDTO(result);
@@ -90,6 +92,7 @@ public class GoogleRoutingService {
     }
 
     public RouteResponseDTO getRawRouteDTO(Double sLat, Double sLon, Double dLat, Double dLon) {
+        validateCoordinates(sLat, sLon, dLat, dLon);
         try {
             DirectionsResult result = fetchDirectionsFromGoogle(sLat, sLon, dLat, dLon);
 
@@ -125,7 +128,7 @@ public class GoogleRoutingService {
     ) {
 
         log.info("[CACHE MISS] Processing fresh request for user: {}", user.getEmail());
-
+        validateCoordinates(sLat, sLon, dLat, dLon);
         try {
 
             DirectionsResult result =
@@ -303,23 +306,18 @@ public class GoogleRoutingService {
             return buildEmptyForecasts(routeCount);
         }
 
-        Map<String, Object> routeAnalysis;
-        try {
-            routeAnalysis = (Map<String, Object>) routeAnalysisRaw;
-        } catch (ClassCastException e) {
-            log.warn("[SCORE] 'route_analysis' has unexpected type: {}", routeAnalysisRaw.getClass());
-            return buildEmptyForecasts(routeCount);
-        }
+        Map<String, Object> routeAnalysis = CastUtils.safeMap(routeAnalysisRaw);
+        if (routeAnalysis.isEmpty()) return buildEmptyForecasts(routeCount);
 
         for (Map.Entry<String, Object> entry : routeAnalysis.entrySet()) {
             String routeId = entry.getKey();
-            Map<String, Object> routeData = (Map<String, Object>) entry.getValue();
+            Map<String, Object> routeData = CastUtils.safeMap(entry.getValue());
 
-            List<Object> details = (List<Object>) routeData.getOrDefault("details", List.of());
+            List<Object> details = CastUtils.safeList(routeData.getOrDefault("details", List.of()));
 
             List<StationForecastEntry> forecastPoints = new ArrayList<>();
             for (Object detailObj : details) {
-                Map<String, Object> detail = (Map<String, Object>) detailObj;
+                Map<String, Object> detail = CastUtils.safeMap(detailObj);
                 Double aqi = toDouble(detail.get("aqi"));
                 if (aqi != null) {
                     StationForecastEntry entry2 = new StationForecastEntry();
@@ -360,6 +358,27 @@ public class GoogleRoutingService {
             durations.put("Route_" + (i + 1), durationMinutes);
         }
         return durations;
+    }
+
+    /**
+     * Validates that a lat/lon pair is within legal WGS-84 bounds.
+     */
+    private static void validateCoordinates(Double sLat, Double sLon, Double dLat, Double dLon) {
+        if (sLat == null || sLon == null || dLat == null || dLon == null) {
+            throw new IllegalArgumentException("Coordinates must not be null");
+        }
+        if (Double.isNaN(sLat) || Double.isInfinite(sLat) ||
+            Double.isNaN(sLon) || Double.isInfinite(sLon) ||
+            Double.isNaN(dLat) || Double.isInfinite(dLat) ||
+            Double.isNaN(dLon) || Double.isInfinite(dLon)) {
+            throw new IllegalArgumentException("Coordinates must be finite numbers");
+        }
+        if (sLat < -90 || sLat > 90 || dLat < -90 || dLat > 90) {
+            throw new IllegalArgumentException("Latitude must be between -90 and 90");
+        }
+        if (sLon < -180 || sLon > 180 || dLon < -180 || dLon > 180) {
+            throw new IllegalArgumentException("Longitude must be between -180 and 180");
+        }
     }
 
     // -------------------------------------------------------------------------

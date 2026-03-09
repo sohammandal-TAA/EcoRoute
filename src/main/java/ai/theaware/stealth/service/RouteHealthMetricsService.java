@@ -5,6 +5,8 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import ai.theaware.stealth.config.CastUtils;
+
 public final class RouteHealthMetricsService {
 
     private static final double VENTILATION_RATE = 0.012; // m³/min
@@ -51,8 +53,8 @@ public final class RouteHealthMetricsService {
             return new HealthMetrics(0, 0, 0);
         }
 
-        Map<String, Object> ecoData = (Map<String, Object>) routeAnalysis.get(ecoRouteId);
-        if (ecoData == null) {
+        Map<String, Object> ecoData = CastUtils.safeMap(routeAnalysis.get(ecoRouteId));
+        if (ecoData.isEmpty()) {
             return new HealthMetrics(0, 0, 0);
         }
 
@@ -73,7 +75,7 @@ public final class RouteHealthMetricsService {
         for (Map.Entry<String, Object> entry : routeAnalysis.entrySet()) {
             if (entry.getKey().equals(ecoRouteId)) continue;
 
-            Map<String, Object> altData = (Map<String, Object>) entry.getValue();
+            Map<String, Object> altData = CastUtils.safeMap(entry.getValue());
 
             double avgAqiAlt  = extractAvgAqi(altData);
             double avgPm25Alt = extractAvgPm25(altData);
@@ -142,7 +144,7 @@ public final class RouteHealthMetricsService {
         Object detailsRaw = routeData.get("details");
         if (!(detailsRaw instanceof List)) return 0.0;
 
-        List<Object> details = (List<Object>) detailsRaw;
+        List<Object> details = CastUtils.safeList(detailsRaw);
         if (details.isEmpty()) return 0.0;
 
         double sum = 0.0;
@@ -150,7 +152,7 @@ public final class RouteHealthMetricsService {
 
         for (Object item : details) {
             if (!(item instanceof Map)) continue;
-            Object val = ((Map<String, Object>) item).get(field);
+            Object val = CastUtils.safeMap(item).get(field);
             if (val instanceof Number number) {
                 sum += number.doubleValue();
                 count++;
